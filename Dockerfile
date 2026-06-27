@@ -22,6 +22,10 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
+# Receive version injected at build time and persist it as a runtime ENV
+ARG APP_VERSION=0.1.0
+ENV APP_VERSION=$APP_VERSION
+
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser
 
