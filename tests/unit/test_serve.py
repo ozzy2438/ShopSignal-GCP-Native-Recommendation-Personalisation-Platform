@@ -27,6 +27,7 @@ class TestVersionEndpoint:
         body = client.get("/version").json()
         assert body["version"] == APP_VERSION
         assert "env" in body
+        assert "build_date" in body
         assert "model_stage" in body
 
 

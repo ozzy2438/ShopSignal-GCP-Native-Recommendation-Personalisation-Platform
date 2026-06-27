@@ -14,6 +14,7 @@ will be wired in during Phase 2 of the roadmap (feat/two-stage-model).
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -24,6 +25,8 @@ from src.serve.schemas import RecommendedItem, RecommendRequest, RecommendRespon
 # Injected at build time via Docker ARG / environment variable.
 APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
 APP_ENV = os.getenv("APP_ENV", "development")
+# BUILD_DATE is injected at Docker build time; falls back to startup timestamp.
+BUILD_DATE = os.getenv("BUILD_DATE", datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -60,6 +63,7 @@ async def version() -> dict[str, Any]:
     return {
         "version": APP_VERSION,
         "env": APP_ENV,
+        "build_date": BUILD_DATE,
         "model_stage": "placeholder",  # TODO: replace with MLflow model stage
     }
 
