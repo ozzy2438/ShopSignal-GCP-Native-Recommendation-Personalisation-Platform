@@ -17,7 +17,6 @@ WITH item_stats AS (
         SUM(price)                  AS total_revenue,
         AVG(price)                  AS avg_price,
         MAX(transaction_date)       AS last_sold_date
-
     FROM {{ ref('stg_transactions') }}
     GROUP BY article_id
 )
@@ -42,6 +41,5 @@ SELECT
         COALESCE(s.unique_buyers, 0),
         MAX(COALESCE(s.unique_buyers, 0)) OVER ()
     ) AS popularity_score
-
 FROM {{ ref('stg_articles') }} a
 LEFT JOIN item_stats s USING (article_id)

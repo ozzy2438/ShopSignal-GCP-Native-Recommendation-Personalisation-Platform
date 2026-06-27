@@ -19,7 +19,6 @@ WITH tx_stats AS (
         COUNT(DISTINCT transaction_date) AS active_days,
         MAX(transaction_date)         AS last_purchase_date,
         MIN(transaction_date)         AS first_purchase_date
-
     FROM {{ ref('stg_transactions') }}
     GROUP BY customer_id
 )
@@ -39,6 +38,5 @@ SELECT
     t.last_purchase_date,
     t.first_purchase_date,
     DATE_DIFF(CURRENT_DATE(), t.last_purchase_date, DAY) AS days_since_last_purchase
-
 FROM tx_stats t
 LEFT JOIN {{ ref('stg_customers') }} c USING (customer_id)

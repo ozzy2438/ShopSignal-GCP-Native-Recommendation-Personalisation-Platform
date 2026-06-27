@@ -2,7 +2,7 @@
 API smoke test — confirms the running service is reachable and healthy.
 
 This test is designed to run against a live server (via Docker or Cloud Run).
-Set BASE_URL environment variable to point at the target environment.
+Set SMOKE_BASE_URL environment variable to point at the target environment.
 
 Default (CI without a running server): uses FastAPI TestClient.
 """

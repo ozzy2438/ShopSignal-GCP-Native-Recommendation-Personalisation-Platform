@@ -22,7 +22,6 @@ SELECT
     EXTRACT(YEAR  FROM CAST(t_dat AS DATE)) AS transaction_year,
     EXTRACT(MONTH FROM CAST(t_dat AS DATE)) AS transaction_month,
     EXTRACT(WEEK  FROM CAST(t_dat AS DATE)) AS transaction_week
-
 FROM {{ source('shopsignal', 'raw_transactions') }}
 WHERE customer_id IS NOT NULL
   AND article_id  IS NOT NULL

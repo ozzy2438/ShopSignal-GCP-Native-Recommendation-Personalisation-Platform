@@ -47,17 +47,23 @@ class TestRecommendEndpoint:
         assert len(body["recommendations"]) == 3
 
     def test_recommend_response_schema(self):
+        top_n = 5
         body = client.post(
             "/recommend",
-            json={"customer_id": "abc123", "top_n": 5},
+            json={"customer_id": "abc123", "top_n": top_n},
         ).json()
-        assert "customer_id" in body
-        assert "recommendations" in body
-        assert "model_version" in body
-        assert "source" in body
-        for item in body["recommendations"]:
+        assert body["customer_id"] == "abc123"
+        assert body["model_version"] == APP_VERSION
+        assert body["source"] == "mock"
+        recs = body["recommendations"]
+        assert len(recs) == min(top_n, 10)
+        for item in recs:
             assert "article_id" in item
             assert "score" in item
+        scores = [item["score"] for item in recs]
+        assert scores == sorted(scores, reverse=True), (
+            "recommendations should be ordered by score descending"
+        )
 
     def test_recommend_empty_customer_id_returns_422(self):
         response = client.post("/recommend", json={"customer_id": "", "top_n": 5})
@@ -70,3 +76,23 @@ class TestRecommendEndpoint:
             json={"customer_id": "abc", "top_n": 50},
         ).json()
         assert len(body["recommendations"]) <= 10
+
+    # ── top_n boundary validation ─────────────────────────────────────────────
+
+    def test_recommend_top_n_zero_returns_422(self):
+        response = client.post("/recommend", json={"customer_id": "abc", "top_n": 0})
+        assert response.status_code == 422
+
+    def test_recommend_top_n_above_max_returns_422(self):
+        response = client.post("/recommend", json={"customer_id": "abc", "top_n": 51})
+        assert response.status_code == 422
+
+    def test_recommend_top_n_min_boundary_returns_200(self):
+        response = client.post("/recommend", json={"customer_id": "abc", "top_n": 1})
+        assert response.status_code == 200
+        assert len(response.json()["recommendations"]) == 1
+
+    def test_recommend_top_n_max_boundary_returns_200(self):
+        response = client.post("/recommend", json={"customer_id": "abc", "top_n": 50})
+        assert response.status_code == 200
+        assert len(response.json()["recommendations"]) <= 10

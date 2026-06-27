@@ -7,7 +7,7 @@ shopsignal:
   outputs:
     dev:
       type: bigquery
-      method: oauth                    # use `service-account` in CI with key file
+      method: oauth                    # use `oauth` with Workload Identity Federation in CI (service-account JSON keys are forbidden)
       project: shopsignal-ml           # TODO: replace with your GCP project ID
       dataset: shopsignal
       location: australia-southeast1

@@ -19,6 +19,5 @@ SELECT
     CAST(section_name        AS STRING) AS section_name,
     CAST(garment_group_name  AS STRING) AS garment_group_name,
     CAST(detail_desc         AS STRING) AS detail_desc  -- used for semantic search
-
 FROM {{ source('shopsignal', 'raw_articles') }}
 WHERE article_id IS NOT NULL

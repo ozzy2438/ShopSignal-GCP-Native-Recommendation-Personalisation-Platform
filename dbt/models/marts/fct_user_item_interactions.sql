@@ -22,7 +22,6 @@ WITH interactions AS (
         transaction_date,
         COUNT(*) AS purchase_count,
         SUM(price) AS total_spend
-
     FROM {{ ref('stg_transactions') }}
     GROUP BY customer_id, article_id, transaction_date
 )
@@ -35,5 +34,4 @@ SELECT
     total_spend,
     -- Implicit confidence weight (higher purchase count → higher confidence)
     1 + LOG(purchase_count) AS implicit_confidence
-
 FROM interactions
