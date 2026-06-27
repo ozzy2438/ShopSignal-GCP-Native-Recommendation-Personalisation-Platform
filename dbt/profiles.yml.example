@@ -1,0 +1,35 @@
+# dbt/profiles.yml.example
+# Copy this file to dbt/profiles.yml and replace placeholders.
+# NEVER commit dbt/profiles.yml — it contains GCP project credentials.
+
+shopsignal:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth                    # use `service-account` in CI with key file
+      project: shopsignal-ml           # TODO: replace with your GCP project ID
+      dataset: shopsignal
+      location: australia-southeast1
+      threads: 4
+      timeout_seconds: 300
+
+    staging:
+      type: bigquery
+      method: service-account
+      project: shopsignal-ml
+      dataset: shopsignal_staging
+      location: australia-southeast1
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      threads: 4
+      timeout_seconds: 300
+
+    production:
+      type: bigquery
+      method: service-account
+      project: shopsignal-ml
+      dataset: shopsignal_prod
+      location: australia-southeast1
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      threads: 8
+      timeout_seconds: 600

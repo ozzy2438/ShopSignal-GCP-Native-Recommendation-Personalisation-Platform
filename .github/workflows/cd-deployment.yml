@@ -1,0 +1,207 @@
+name: "CD — Deployment"
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  # Automatically triggered after Build RC succeeds on main
+  workflow_run:
+    workflows: ["CD — Build Release Candidate"]
+    types: [completed]
+    branches: [main]
+
+  # Manual trigger for re-deployments or rollbacks
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [staging, production]
+        default: staging
+      image_tag:
+        description: "Docker image tag (e.g. sha-a1b2c3d) — leave blank for latest"
+        required: false
+        type: string
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+  deployments: write
+  id-token: write   # Required for Workload Identity Federation
+
+env:
+  GCP_REGION: "australia-southeast1"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ── Resolve image tag ────────────────────────────────────────────────────
+  resolve-tag:
+    name: "Resolve Image Tag"
+    runs-on: ubuntu-latest
+    # Only run if the triggering workflow succeeded (or if manually triggered)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      image-tag: ${{ steps.resolve.outputs.image-tag }}
+    steps:
+      - name: Resolve tag
+        id: resolve
+        run: |
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            echo "image-tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA="${{ github.sha }}"
+            SHORT_SHA="${SHORT_SHA::7}"
+            echo "image-tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+  # ── Deploy to Staging ────────────────────────────────────────────────────
+  deploy-staging:
+    name: "Deploy → Staging"
+    runs-on: ubuntu-latest
+    needs: [resolve-tag]
+    # GitHub Environments provide the manual approval gate for staging
+    environment:
+      name: staging
+      url: "https://staging-api.shopsignal.example.com"  # TODO: replace with real URL
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚠️ SIMULATION — GCP credentials not configured
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "  DEPLOYMENT SIMULATION — NOT A REAL DEPLOYMENT"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Image tag : ${{ needs.resolve-tag.outputs.image-tag }}"
+          echo "Target    : staging"
+          echo "Region    : ${{ env.GCP_REGION }}"
+          echo ""
+          echo "When GCP credentials are configured, this step will:"
+          echo "  1. Authenticate via Workload Identity Federation"
+          echo "  2. Pull image from Artifact Registry"
+          echo "  3. Deploy to Cloud Run (staging service)"
+          echo "  4. Verify health endpoint"
+          echo "  5. Record deployment in GitHub Environments history"
+          echo ""
+          echo "Required secrets (not yet configured):"
+          echo "  - WORKLOAD_IDENTITY_PROVIDER"
+          echo "  - SERVICE_ACCOUNT_EMAIL"
+          echo "  - GCP_PROJECT_ID"
+          echo "  - CLOUD_RUN_SERVICE_NAME (staging)"
+          echo ""
+          echo "See docs/manual-github-settings.md for setup instructions."
+
+      # ── REAL DEPLOYMENT STEPS (commented out until credentials are ready) ──
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v2
+      #   with:
+      #     workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+      #     service_account: ${{ secrets.SERVICE_ACCOUNT_EMAIL }}
+      #
+      # - name: Deploy to Cloud Run (staging)
+      #   uses: google-github-actions/deploy-cloudrun@v2
+      #   id: deploy
+      #   with:
+      #     service: ${{ secrets.CLOUD_RUN_SERVICE_NAME }}
+      #     region: ${{ env.GCP_REGION }}
+      #     image: >-
+      #       australia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/shopsignal/shopsignal-api:${{ needs.resolve-tag.outputs.image-tag }}
+      #     env_vars: |
+      #       APP_ENV=staging
+      #       LOG_LEVEL=INFO
+      #     flags: --min-instances=0 --max-instances=5 --memory=512Mi --cpu=1
+      #
+      # - name: Verify staging health
+      #   run: |
+      #     sleep 10
+      #     curl -sf "${{ steps.deploy.outputs.url }}/health"
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Staging deployment summary
+        run: |
+          echo "## 🚀 Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ⚠️ SIMULATED (GCP not configured) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image tag | \`${{ needs.resolve-tag.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | staging |" >> $GITHUB_STEP_SUMMARY
+          echo "| Approved by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy to Production ─────────────────────────────────────────────────
+  deploy-production:
+    name: "Deploy → Production"
+    runs-on: ubuntu-latest
+    needs: [resolve-tag, deploy-staging]
+    # Production environment has manual approval + 5-minute wait timer
+    environment:
+      name: production
+      url: "https://api.shopsignal.example.com"  # TODO: replace with real URL
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚠️ SIMULATION — GCP credentials not configured
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "  PRODUCTION DEPLOYMENT SIMULATION — NOT A REAL DEPLOYMENT"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Image tag : ${{ needs.resolve-tag.outputs.image-tag }}"
+          echo "Target    : production"
+          echo ""
+          echo "SAME IMAGE as staging — no rebuild."
+          echo "Deployment records pinned image SHA for rollback."
+
+      # ── REAL PRODUCTION DEPLOYMENT (commented until credentials ready) ────
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v2
+      #   with:
+      #     workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+      #     service_account: ${{ secrets.SERVICE_ACCOUNT_EMAIL }}
+      #
+      # - name: Deploy to Cloud Run (production)
+      #   uses: google-github-actions/deploy-cloudrun@v2
+      #   id: deploy
+      #   with:
+      #     service: ${{ secrets.CLOUD_RUN_SERVICE_NAME }}
+      #     region: ${{ env.GCP_REGION }}
+      #     image: >-
+      #       australia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/shopsignal/shopsignal-api:${{ needs.resolve-tag.outputs.image-tag }}
+      #     env_vars: |
+      #       APP_ENV=production
+      #       LOG_LEVEL=WARNING
+      #     flags: --min-instances=1 --max-instances=20 --memory=1Gi --cpu=2
+      #
+      # - name: Verify production health
+      #   run: |
+      #     sleep 15
+      #     curl -sf "${{ steps.deploy.outputs.url }}/health"
+      #
+      # - name: Rollback instructions on failure
+      #   if: failure()
+      #   run: |
+      #     echo "::error::Production deployment failed."
+      #     echo "::notice::Rollback: gcloud run services update-traffic ${{ secrets.CLOUD_RUN_SERVICE_NAME }} --to-revisions=PREV=100 --region=${{ env.GCP_REGION }}"
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Production deployment summary
+        run: |
+          echo "## 🚀 Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ⚠️ SIMULATED (GCP not configured) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image tag | \`${{ needs.resolve-tag.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | production |" >> $GITHUB_STEP_SUMMARY
+          echo "| Approved by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Rollback Command" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "gcloud run services update-traffic shopsignal-api \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --to-revisions=PREVIOUS_REVISION=100 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --region=${{ env.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

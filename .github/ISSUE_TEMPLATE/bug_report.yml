@@ -1,0 +1,37 @@
+---
+name: "\U0001F41B Bug Report"
+about: Report a reproducible bug
+title: "fix: "
+labels: ["bug", "needs-triage"]
+assignees: []
+---
+
+## Bug Description
+<!-- Clear and concise description of the bug -->
+
+## Steps to Reproduce
+1. 
+2. 
+3. 
+
+## Expected Behaviour
+<!-- What should happen? -->
+
+## Actual Behaviour
+<!-- What actually happens? Include error messages, tracebacks, or screenshots -->
+
+```
+# Paste error output here
+```
+
+## Environment
+- OS: 
+- Python version: 
+- Branch / commit SHA: 
+- Docker image tag (if applicable): 
+
+## Possible Root Cause
+<!-- Optional: your hypothesis about what's causing this -->
+
+## Proposed Fix
+<!-- Optional: how you think this should be fixed -->

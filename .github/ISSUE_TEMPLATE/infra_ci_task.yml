@@ -1,0 +1,37 @@
+---
+name: "\u2699\uFE0F Infrastructure / CI-CD Task"
+about: GitHub Actions workflow change, Docker, GCP, or repository configuration
+title: "ci: "
+labels: ["infrastructure", "ci-cd", "needs-triage"]
+assignees: []
+---
+
+## Task Description
+<!-- What infrastructure or CI/CD change is needed? -->
+
+## Affected Components
+- [ ] GitHub Actions workflow
+- [ ] Dockerfile
+- [ ] GCP Cloud Run
+- [ ] GCP Artifact Registry
+- [ ] Workload Identity Federation
+- [ ] GitHub Environments / Secrets
+- [ ] Branch protection rules
+- [ ] Dependabot
+- [ ] Repository settings
+- [ ] Other: 
+
+## Security Implications
+<!-- Does this change affect authentication, secret handling, or access control? -->
+
+## Cost Implications
+<!-- Will this create or increase GCP resource costs? -->
+
+## Rollback Plan
+<!-- How can this change be reversed if it causes problems? -->
+
+## Testing Plan
+<!-- How will you verify this works before merging? -->
+
+## References
+<!-- Documentation links, GCP docs, GitHub docs -->

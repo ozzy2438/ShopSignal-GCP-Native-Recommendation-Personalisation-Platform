@@ -1,0 +1,58 @@
+---
+name: "\U0001F9EA Model Experiment"
+about: Track an ML experiment, hypothesis, or model change
+title: "experiment: "
+labels: ["model-experiment", "needs-triage"]
+assignees: []
+---
+
+## Experiment Hypothesis
+<!-- What do you expect to happen, and why? -->
+
+## Motivation
+<!-- Why is this experiment worth running? What problem does it address? -->
+
+## Approach
+<!-- Describe the model change, feature change, or hyperparameter tuning plan -->
+
+### Baseline
+- Model: 
+- NDCG@10: 
+- Recall@10: 
+
+### Candidate
+- Model change: 
+- Expected NDCG@10 improvement: 
+
+## Dataset
+- Training split: 
+- Validation split: 
+- Evaluation users: 
+
+## Acceptance Criteria (Promotion Gate)
+<!-- The candidate must meet these criteria to be promoted to production -->
+- [ ] NDCG@10 ≥ 0.35 (minimum threshold)
+- [ ] NDCG@10 > baseline NDCG@10
+- [ ] Recall@10 not degraded by more than 5%
+- [ ] Training time < X minutes
+- [ ] Inference latency p99 < Xms
+
+## Experiment Tracking
+<!-- MLflow experiment name / run ID -->
+- MLflow experiment: 
+- Run ID: 
+
+## Results
+<!-- Fill in after running the experiment -->
+| Metric | Baseline | Candidate | Δ |
+|--------|----------|-----------|---|
+| NDCG@10 | | | |
+| Recall@10 | | | |
+| MAP@10 | | | |
+
+## Decision
+- [ ] Promote to production
+- [ ] Reject — does not meet promotion gate
+- [ ] Iterate — further tuning needed
+
+## Notes

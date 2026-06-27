@@ -1,0 +1,1 @@
+# ShopSignal Python package
