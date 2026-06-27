@@ -16,7 +16,7 @@ joblib==1.4.2
 
 # GCP
 google-cloud-bigquery==3.23.1
-db-dtypes==1.2.0
+db-dtypes==1.7.0
 
 # dbt
 dbt-bigquery==1.7.9
