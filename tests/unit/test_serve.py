@@ -60,9 +60,9 @@ class TestRecommendEndpoint:
             assert "article_id" in item
             assert "score" in item
         scores = [item["score"] for item in recs]
-        assert scores == sorted(scores, reverse=True), (
-            "recommendations should be ordered by score descending"
-        )
+        assert scores == sorted(
+            scores, reverse=True
+        ), "recommendations should be ordered by score descending"
 
     def test_recommend_empty_customer_id_returns_422(self):
         response = client.post("/recommend", json={"customer_id": "", "top_n": 5})
