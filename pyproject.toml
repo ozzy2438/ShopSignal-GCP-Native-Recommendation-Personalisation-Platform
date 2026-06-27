@@ -70,7 +70,13 @@ markers = [
 # ── Coverage ──────────────────────────────────────────────────────────────────
 [tool.coverage.run]
 source = ["src"]
-omit = ["*/tests/*", "*/__init__.py"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "src/data/*",      # placeholder — BigQuery upload, not yet implemented
+    "src/features/*",  # placeholder — feature engineering, not yet implemented
+    "src/models/*",    # placeholder — ALS + LightGBM, not yet implemented
+]
 
 [tool.coverage.report]
 show_missing = true

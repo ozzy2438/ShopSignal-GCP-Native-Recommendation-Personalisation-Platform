@@ -246,6 +246,7 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: shopsignal-api:pr-${{ github.event.pull_request.number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
