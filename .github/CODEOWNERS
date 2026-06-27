@@ -1,0 +1,45 @@
+# CODEOWNERS — ShopSignal
+#
+# Each line defines who is automatically requested for review when files
+# in the matched path are changed in a Pull Request.
+#
+# Format:  <path-pattern>  @<github-username-or-team>
+#
+# SETUP REQUIRED: Replace placeholder usernames with real GitHub usernames.
+# See docs/manual-github-settings.md for instructions.
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ── Default owner (all unmatched files) ──────────────────────────────────────
+# TODO: Replace @ozzy2438 with the primary maintainer's GitHub username
+*                               @ozzy2438
+
+# ── Data Engineering — dbt models, BigQuery loaders ──────────────────────────
+# TODO: Replace @data-engineering-team with real username(s)
+/dbt/                           @ozzy2438
+/src/data/                      @ozzy2438
+
+# ── Data Science / ML — model training and evaluation ────────────────────────
+# TODO: Replace @data-science-team with real username(s)
+/src/models/                    @ozzy2438
+/src/evaluate/                  @ozzy2438
+/src/features/                  @ozzy2438
+/pipelines/                     @ozzy2438
+
+# ── ML / Backend — serving layer ─────────────────────────────────────────────
+# TODO: Replace @ml-backend-team with real username(s)
+/src/serve/                     @ozzy2438
+
+# ── Platform / DevOps — CI/CD, Docker, infrastructure ────────────────────────
+# TODO: Replace @platform-team with real username(s)
+/.github/workflows/             @ozzy2438
+/Dockerfile                     @ozzy2438
+/.dockerignore                  @ozzy2438
+/Makefile                       @ozzy2438
+/pyproject.toml                 @ozzy2438
+
+# ── Documentation — all contributors should review ───────────────────────────
+# TODO: Replace @ozzy2438 with maintainer(s) responsible for docs
+/docs/                          @ozzy2438
+/README.md                      @ozzy2438
+/CONTRIBUTING.md                @ozzy2438

@@ -1,0 +1,291 @@
+name: "MLOps — Scheduled Retrain and Promotion"
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  # Manual trigger — use this now for testing and demonstrations
+  workflow_dispatch:
+    inputs:
+      force_promote:
+        description: "Force promotion even if NDCG gate fails (DEBUG ONLY)"
+        required: false
+        type: boolean
+        default: false
+
+  # Weekly schedule — every Monday at 02:00 AEST (Sunday 16:00 UTC)
+  # TODO: uncomment when real training pipeline is ready
+  # schedule:
+  #   - cron: "0 16 * * 0"
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+  actions: write   # Required to trigger the deployment workflow
+
+env:
+  PYTHON_VERSION: "3.11"
+  NDCG_PROMOTION_THRESHOLD: "0.35"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ── Stage 1: Data validation ─────────────────────────────────────────────
+  validate-data:
+    name: "1 · Validate Data"
+    runs-on: ubuntu-latest
+    outputs:
+      data-valid: ${{ steps.validate.outputs.data-valid }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install google-cloud-bigquery 2>/dev/null || echo "BigQuery not installed in placeholder mode"
+
+      - name: Validate data sources
+        id: validate
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "  DATA VALIDATION — PLACEHOLDER"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "TODO: Replace with real BigQuery validation:"
+          echo "  1. Connect to BigQuery (GCP_PROJECT_ID)"
+          echo "  2. Check shopsignal.raw_transactions row count > 0"
+          echo "  3. Verify last partition date is within 24 hours"
+          echo "  4. Assert no NULL customer_id or article_id"
+          echo "  5. Run dbt test --select source:shopsignal"
+          echo ""
+          echo "PLACEHOLDER: Returning data-valid=true"
+          echo "data-valid=true" >> $GITHUB_OUTPUT
+
+      - name: Write data validation summary
+        run: |
+          echo "## 📊 Data Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ⚠️ **PLACEHOLDER** — No real BigQuery connection." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| BigQuery connectivity | ⚠️ Not configured |" >> $GITHUB_STEP_SUMMARY
+          echo "| raw_transactions freshness | ⚠️ Not checked |" >> $GITHUB_STEP_SUMMARY
+          echo "| Null key validation | ⚠️ Not checked |" >> $GITHUB_STEP_SUMMARY
+          echo "| dbt source tests | ⚠️ Not run |" >> $GITHUB_STEP_SUMMARY
+
+  # ── Stage 2: Train candidate model ───────────────────────────────────────
+  train-model:
+    name: "2 · Train Candidate Model"
+    runs-on: ubuntu-latest
+    needs: [validate-data]
+    if: needs.validate-data.outputs.data-valid == 'true'
+    outputs:
+      model-artifact: ${{ steps.train.outputs.model-artifact }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ML dependencies
+        run: |
+          pip install scikit-learn lightgbm implicit joblib
+          echo "NOTE: implicit (ALS) and lightgbm installed but no real training data available."
+
+      - name: Run training pipeline (placeholder)
+        id: train
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "  MODEL TRAINING — PLACEHOLDER"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "TODO Stage 2: ALS Candidate Generation"
+          echo "  - Extract user-item matrix from BigQuery:"
+          echo "    SELECT customer_id, article_id, implicit_confidence"
+          echo "    FROM shopsignal.fct_user_item_interactions"
+          echo "  - Build scipy sparse matrix"
+          echo "  - Train: implicit.als.AlternatingLeastSquares("
+          echo "      factors=64, iterations=15, regularization=0.01"
+          echo "    )"
+          echo "  - Generate top-200 candidates per user"
+          echo "  - Save: joblib.dump(model, models/als_model.pkl)"
+          echo ""
+          echo "TODO Stage 2: LightGBM Ranker"
+          echo "  - Build feature matrix from:"
+          echo "    shopsignal.fct_user_features"
+          echo "    shopsignal.fct_item_features"
+          echo "  - Train: lgb.LGBMRanker("
+          echo "      objective='lambdarank',"
+          echo "      metric='ndcg',"
+          echo "      n_estimators=500"
+          echo "    )"
+          echo "  - Save: joblib.dump(ranker, models/lgbm_ranker.pkl)"
+          echo ""
+          echo "PLACEHOLDER: Simulating training with mock output"
+          python pipelines/retrain.py
+          echo "model-artifact=placeholder-no-artifact" >> $GITHUB_OUTPUT
+
+  # ── Stage 3: Evaluate candidate model ────────────────────────────────────
+  evaluate-model:
+    name: "3 · Evaluate Candidate Model"
+    runs-on: ubuntu-latest
+    needs: [train-model]
+    outputs:
+      ndcg-score: ${{ steps.evaluate.outputs.ndcg-score }}
+      recall-score: ${{ steps.evaluate.outputs.recall-score }}
+      gate-passed: ${{ steps.evaluate.outputs.gate-passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install evaluation dependencies
+        run: pip install scikit-learn numpy
+
+      - name: Evaluate model against held-out users
+        id: evaluate
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "  MODEL EVALUATION — PLACEHOLDER (mock metrics)"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "TODO: Real evaluation pipeline:"
+          echo "  1. Load held-out user set (last 2 weeks of transactions)"
+          echo "  2. Generate recommendations for each user"
+          echo "  3. Compute NDCG@10, Recall@10, MAP@10"
+          echo "  4. Compare against production model metrics"
+          echo "  5. Write metrics to MLflow / GCS"
+          echo ""
+          python3 << 'EOF'
+          import json
+
+          # PLACEHOLDER metrics — replace with real evaluation
+          mock_ndcg = 0.41
+          mock_recall = 0.28
+          threshold = 0.35
+
+          gate_passed = mock_ndcg >= threshold
+
+          print(f"NDCG@10   = {mock_ndcg:.4f}")
+          print(f"Recall@10 = {mock_recall:.4f}")
+          print(f"Threshold = {threshold:.4f}")
+          print(f"Gate      = {'PASSED ✅' if gate_passed else 'FAILED ❌'}")
+
+          with open("eval_results.json", "w") as f:
+              json.dump({
+                  "ndcg_at_10": mock_ndcg,
+                  "recall_at_10": mock_recall,
+                  "threshold": threshold,
+                  "gate_passed": gate_passed,
+                  "mode": "placeholder"
+              }, f, indent=2)
+          EOF
+
+          NDCG=$(python3 -c "import json; d=json.load(open('eval_results.json')); print(d['ndcg_at_10'])")
+          RECALL=$(python3 -c "import json; d=json.load(open('eval_results.json')); print(d['recall_at_10'])")
+          GATE=$(python3 -c "import json; d=json.load(open('eval_results.json')); print(str(d['gate_passed']).lower())")
+
+          echo "ndcg-score=${NDCG}" >> $GITHUB_OUTPUT
+          echo "recall-score=${RECALL}" >> $GITHUB_OUTPUT
+          echo "gate-passed=${GATE}" >> $GITHUB_OUTPUT
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.run_id }}
+          path: eval_results.json
+          retention-days: 90
+
+  # ── Stage 4: Promotion gate ───────────────────────────────────────────────
+  promotion-gate:
+    name: "4 · NDCG Promotion Gate"
+    runs-on: ubuntu-latest
+    needs: [evaluate-model]
+    outputs:
+      promote: ${{ steps.gate.outputs.promote }}
+    steps:
+      - name: Evaluate promotion decision
+        id: gate
+        run: |
+          NDCG="${{ needs.evaluate-model.outputs.ndcg-score }}"
+          GATE="${{ needs.evaluate-model.outputs.gate-passed }}"
+          FORCE="${{ inputs.force_promote }}"
+
+          echo "════════════════════════════════════════════════════════════"
+          echo "  PROMOTION GATE"
+          echo "════════════════════════════════════════════════════════════"
+          echo "  NDCG@10           : ${NDCG}"
+          echo "  Gate passed       : ${GATE}"
+          echo "  Force promote     : ${FORCE}"
+          echo ""
+
+          if [[ "$GATE" == "true" ]]; then
+            echo "✅ Promotion gate PASSED — candidate model approved for deployment"
+            echo "promote=true" >> $GITHUB_OUTPUT
+          elif [[ "$FORCE" == "true" ]]; then
+            echo "⚠️  FORCE PROMOTE enabled — bypassing gate (DEBUG MODE)"
+            echo "promote=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Promotion gate FAILED — deployment blocked"
+            echo "promote=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Write promotion summary
+        if: always()
+        run: |
+          echo "## 🎯 Promotion Gate Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value | Threshold | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| NDCG@10 | ${{ needs.evaluate-model.outputs.ndcg-score }} | ${{ env.NDCG_PROMOTION_THRESHOLD }} | ${{ needs.evaluate-model.outputs.gate-passed == 'true' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Recall@10 | ${{ needs.evaluate-model.outputs.recall-score }} | — | ℹ️ informational |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ⚠️ **PLACEHOLDER** — metrics are mock values." >> $GITHUB_STEP_SUMMARY
+          echo "> Replace with real BigQuery + MLflow evaluation in \`pipelines/retrain.py\`." >> $GITHUB_STEP_SUMMARY
+
+  # ── Stage 5: Trigger deployment (only if gate passed) ────────────────────
+  trigger-deployment:
+    name: "5 · Trigger Deployment"
+    runs-on: ubuntu-latest
+    needs: [promotion-gate]
+    if: needs.promotion-gate.outputs.promote == 'true'
+    steps:
+      - name: Deployment approved — trigger CD workflow
+        run: |
+          echo "════════════════════════════════════════════════════════════"
+          echo "  DEPLOYMENT TRIGGER — PLACEHOLDER"
+          echo "════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Promotion gate passed. In a real pipeline, this step would:"
+          echo "  1. Upload model artifacts to GCS / MLflow registry"
+          echo "  2. Tag the model as 'candidate' in the registry"
+          echo "  3. Trigger the CD — Deployment workflow for staging"
+          echo "  4. Send Slack/email notification to the team"
+          echo ""
+          echo "TODO: Implement model artifact upload and deployment trigger"
+          echo ""
+          echo "Example deployment trigger:"
+          echo "  gh workflow run cd-deployment.yml \\"
+          echo "    -f environment=staging \\"
+          echo "    -f image_tag=sha-\${GITHUB_SHA::7}"
+
+      - name: Write deployment trigger summary
+        run: |
+          echo "## 🚀 Deployment Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ⚠️ **SIMULATION** — No real deployment was triggered." >> $GITHUB_STEP_SUMMARY
+          echo "> Promotion gate passed. Deployment trigger placeholder executed." >> $GITHUB_STEP_SUMMARY

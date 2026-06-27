@@ -1,0 +1,42 @@
+---
+name: "\U0001F4CB Data Pipeline Task"
+about: BigQuery schema change, dbt model update, or data quality issue
+title: "data: "
+labels: ["data-pipeline", "needs-triage"]
+assignees: []
+---
+
+## Task Description
+<!-- What data pipeline work needs to be done? -->
+
+## Affected Tables / Models
+<!-- Which BigQuery tables or dbt models are involved? -->
+- [ ] `raw_transactions`
+- [ ] `raw_articles`
+- [ ] `raw_customers`
+- [ ] `stg_transactions`
+- [ ] `stg_articles`
+- [ ] `stg_customers`
+- [ ] `fct_user_item_interactions`
+- [ ] `fct_user_features`
+- [ ] `fct_item_features`
+- [ ] Other: 
+
+## Data Volume / Scale Considerations
+<!-- Will this affect query performance? Estimated row counts? -->
+
+## Breaking Changes
+<!-- Will this break any downstream models, features, or the API? -->
+
+## Validation Plan
+<!-- How will you verify the pipeline output is correct? -->
+- [ ] Row count check
+- [ ] Null check on key columns
+- [ ] Referential integrity test
+- [ ] Sample data review
+
+## dbt Tests to Add
+<!-- List any new dbt test assertions (unique, not_null, accepted_values, etc.) -->
+
+## Rollback Plan
+<!-- How can this be reversed if it breaks something? -->

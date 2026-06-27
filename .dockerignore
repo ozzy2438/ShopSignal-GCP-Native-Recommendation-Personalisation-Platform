@@ -1,0 +1,44 @@
+# .dockerignore — keeps the Docker build context lean and secure
+
+# Git
+.git/
+.gitignore
+
+# Python virtual envs
+.venv/
+venv/
+
+# Test & coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+.ruff_cache/
+.mypy_cache/
+
+# Data (never ship raw data into an image)
+data/
+models/
+mlruns/
+
+# Credentials
+.env
+*.json
+*.key
+
+# dbt artifacts
+dbt/target/
+dbt/logs/
+
+# Docs (not needed in runtime image)
+docs/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# CI/CD files (not needed at runtime)
+.github/
+Makefile

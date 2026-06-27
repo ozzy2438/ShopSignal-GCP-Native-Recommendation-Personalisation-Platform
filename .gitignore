@@ -1,0 +1,57 @@
+# ── Data ──────────────────────────────────────────────────────────────────────
+data/raw/
+data/processed/
+
+# ── Model artifacts ───────────────────────────────────────────────────────────
+models/*.pkl
+models/*.joblib
+models/*.bin
+mlruns/
+
+# ── Credentials & secrets ─────────────────────────────────────────────────────
+.env
+dbt/profiles.yml
+*.json
+!pyproject.toml
+*.key
+*.pem
+
+# ── Python ────────────────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.docker/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── dbt ───────────────────────────────────────────────────────────────────────
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+
+# ── Temp ──────────────────────────────────────────────────────────────────────
+*.log
+*.tmp

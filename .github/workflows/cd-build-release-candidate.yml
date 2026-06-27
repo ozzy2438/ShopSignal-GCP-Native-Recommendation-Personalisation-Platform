@@ -1,0 +1,184 @@
+name: "CD — Build Release Candidate"
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+
+# ── Default permissions ───────────────────────────────────────────────────────
+permissions:
+  contents: read
+  packages: write   # Required if publishing to GitHub Packages in future
+
+env:
+  PYTHON_VERSION: "3.11"
+  IMAGE_NAME: shopsignal-api
+
+# ═══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ── Job 1: Quality checks (re-run on main after merge) ───────────────────
+  quality-check:
+    name: "1 · Quality Check (post-merge)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout merged code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install fastapi uvicorn pydantic httpx pytest pytest-cov ruff==0.4.9
+
+      - name: Lint
+        run: ruff check src tests pipelines
+
+      - name: Format check
+        run: ruff format --check src tests pipelines
+
+      - name: Run unit + smoke tests
+        run: |
+          pytest tests/unit/ tests/smoke/ -v \
+            --tb=short \
+            --junitxml=reports/junit-main.xml \
+            --cov=src \
+            --cov-report=xml:reports/coverage.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: main-test-results-${{ github.sha }}
+          path: reports/
+          retention-days: 30
+
+  # ── Job 2: Build Docker image and tag with commit SHA ────────────────────
+  build-release-candidate:
+    name: "2 · Build Release Candidate"
+    runs-on: ubuntu-latest
+    needs: [quality-check]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.image-tag }}
+      short-sha: ${{ steps.meta.outputs.short-sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          echo "short-sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Short SHA: ${SHORT_SHA}"
+          echo "Image tag: ${IMAGE_TAG}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── PLACEHOLDER: Registry push ─────────────────────────────────────────
+      # When GCP Artifact Registry credentials are provided, replace the
+      # build-only step below with:
+      #
+      #   - name: Authenticate to Google Cloud
+      #     uses: google-github-actions/auth@v2
+      #     with:
+      #       workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+      #       service_account: ${{ secrets.SERVICE_ACCOUNT_EMAIL }}
+      #
+      #   - name: Configure Docker for Artifact Registry
+      #     run: gcloud auth configure-docker australia-southeast1-docker.pkg.dev
+      #
+      #   - name: Push to Artifact Registry
+      #     uses: docker/build-push-action@v5
+      #     with:
+      #       push: true
+      #       tags: |
+      #         australia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/shopsignal/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image-tag }}
+      #         australia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/shopsignal/${{ env.IMAGE_NAME }}:latest
+      # ──────────────────────────────────────────────────────────────────────
+
+      - name: Build Docker image (local only — registry not yet configured)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false   # TODO: set to true when Artifact Registry is configured
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image-tag }}
+            ${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify Docker image health
+        run: |
+          docker run --rm -d \
+            --name shopsignal-rc \
+            -p 8080:8080 \
+            -e APP_ENV=staging \
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image-tag }}
+
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ RC health check passed"
+              break
+            fi
+            sleep 2
+          done
+
+          docker stop shopsignal-rc
+
+      - name: Create build metadata artifact
+        run: |
+          mkdir -p build-info
+          cat > build-info/build-metadata.json << EOF
+          {
+            "image_name": "${{ env.IMAGE_NAME }}",
+            "image_tag": "${{ steps.meta.outputs.image-tag }}",
+            "short_sha": "${{ steps.meta.outputs.short-sha }}",
+            "full_sha": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "build_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "actor": "${{ github.actor }}",
+            "run_id": "${{ github.run_id }}",
+            "workflow": "${{ github.workflow }}",
+            "registry_status": "NOT_PUSHED — Artifact Registry not yet configured",
+            "deployment_status": "PENDING — awaiting manual approval"
+          }
+          EOF
+          echo "Build metadata:"
+          cat build-info/build-metadata.json
+
+      - name: Upload build metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-metadata-${{ steps.meta.outputs.short-sha }}
+          path: build-info/
+          retention-days: 90
+
+      - name: Write job summary
+        run: |
+          echo "## 🏗️ Release Candidate Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image-tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ steps.meta.outputs.short-sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Actor | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚠️ Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> **This is a Release Candidate — it has NOT been deployed.**" >> $GITHUB_STEP_SUMMARY
+          echo "> The image was built and verified locally but NOT pushed to Artifact Registry." >> $GITHUB_STEP_SUMMARY
+          echo "> " >> $GITHUB_STEP_SUMMARY
+          echo "> To enable registry push, configure:" >> $GITHUB_STEP_SUMMARY
+          echo "> 1. GCP Artifact Registry repository" >> $GITHUB_STEP_SUMMARY
+          echo "> 2. Workload Identity Federation" >> $GITHUB_STEP_SUMMARY
+          echo "> 3. Repository secrets (see \`docs/manual-github-settings.md\`)" >> $GITHUB_STEP_SUMMARY

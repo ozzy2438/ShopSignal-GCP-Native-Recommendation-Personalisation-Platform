@@ -1,0 +1,28 @@
+---
+name: "\U0001F680 Feature Request"
+about: Suggest a new feature or improvement
+title: "feat: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+---
+
+## Summary
+<!-- One paragraph describing the feature and its value -->
+
+## Problem / Motivation
+<!-- What problem does this feature solve? Who is affected? -->
+
+## Proposed Solution
+<!-- How should this feature work? Include any relevant API design, UI sketch, or data flow -->
+
+## Acceptance Criteria
+<!-- Define "done" — list testable conditions that must be true -->
+- [ ] 
+- [ ] 
+- [ ] 
+
+## Out of Scope
+<!-- What will NOT be included in this feature? -->
+
+## Additional Context
+<!-- Links, references, Slack threads, screenshots -->

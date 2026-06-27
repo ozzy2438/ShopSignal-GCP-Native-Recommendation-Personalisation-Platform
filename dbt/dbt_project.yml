@@ -1,0 +1,31 @@
+name: shopsignal
+version: "1.0.0"
+config-version: 2
+
+profile: shopsignal
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  shopsignal:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
+
+vars:
+  # Override in CI or per environment
+  bq_project: "shopsignal-ml"
+  bq_dataset: "shopsignal"
