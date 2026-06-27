@@ -21,7 +21,7 @@ SELECT
         WHEN CAST(age AS INT64) < 35 THEN '25_34'
         WHEN CAST(age AS INT64) < 50 THEN '35_49'
         ELSE '50_plus'
-    END AS age_bucket,
+    END AS age_bucket
 
 FROM {{ source('shopsignal', 'raw_customers') }}
 WHERE customer_id IS NOT NULL
