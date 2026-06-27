@@ -171,11 +171,12 @@ jobs:
           echo ""
           python3 << 'EOF'
           import json
+          import os
 
           # PLACEHOLDER metrics — replace with real evaluation
           mock_ndcg = 0.41
           mock_recall = 0.28
-          threshold = 0.35
+          threshold = float(os.environ.get('NDCG_PROMOTION_THRESHOLD', '0.35'))
 
           gate_passed = mock_ndcg >= threshold
 
