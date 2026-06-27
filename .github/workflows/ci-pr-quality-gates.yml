@@ -163,7 +163,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install fastapi uvicorn pydantic httpx pytest pytest-cov ruff
+          pip install -r requirements.txt
 
       - name: Run unit tests
         run: |
@@ -222,7 +222,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install fastapi uvicorn pydantic httpx pytest
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run API smoke tests
         run: |
