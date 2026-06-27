@@ -38,8 +38,14 @@ COPY pyproject.toml .
 RUN chown -R appuser:appuser /app
 USER appuser
 
+# Build-time arguments injected by CI/CD
+ARG APP_VERSION=0.1.0
+ARG BUILD_DATE
+
 # Cloud Run expects the server on PORT env var (default 8080)
-ENV API_HOST=0.0.0.0 \
+ENV APP_VERSION=${APP_VERSION} \
+    BUILD_DATE=${BUILD_DATE} \
+    API_HOST=0.0.0.0 \
     API_PORT=8080 \
     APP_ENV=production \
     LOG_LEVEL=INFO \
@@ -50,7 +56,7 @@ EXPOSE 8080
 
 # Health check — Cloud Run uses /health
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8080/health').raise_for_status()"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
 
 # Entry point
 CMD ["python", "-m", "uvicorn", "src.serve.app:app", \
