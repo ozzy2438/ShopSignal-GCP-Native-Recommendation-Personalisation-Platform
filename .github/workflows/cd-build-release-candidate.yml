@@ -32,7 +32,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install fastapi uvicorn pydantic httpx pytest pytest-cov ruff==0.4.9
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Lint
         run: ruff check src tests pipelines
