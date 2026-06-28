@@ -74,11 +74,15 @@ would make every training iteration slow.
 The file is sorted ascending by date, so reading the tail gives the most recent
 customer behaviour — the most relevant signal for a recency-sensitive recommender.
 
-Approximate characteristics of the 2M-row subset:
-- ~300–400 K unique customers
-- ~90–100 K unique articles
+Measured characteristics of the 2M-row subset (latest 2M rows):
+
+- 359,886 unique customers
+- 34,678 unique articles
 - ~200 MB in memory
-- Covers roughly the final 4–6 months of the dataset
+- Covers 2020-08-01 → 2020-09-22 (52 days — the final 7.5 weeks of the dataset)
+
+> **Note:** 52 days is a shorter training window than ideal for collaborative filtering.
+> Load 5M+ rows (`SHOPSIGNAL_TX_ROWS=5000000`) for more historical depth once RAM allows.
 
 ### Changing the subset size
 
@@ -133,18 +137,37 @@ for fn, df in [(validate_transactions, tx), (validate_articles, art), (validate_
 
 See `src/data/split.py` for full documentation. Summary:
 
+**Full dataset** (31M rows — target for production runs):
+
 ```
 |<——————————————— train ————————————————>|<——— val ———>|<——— test ———>|
 2018-09-20                           2020-06-30   2020-07-01   2020-08-12   2020-09-22
 ```
 
-| Split | Start | End | Purpose |
-|-------|-------|-----|---------|
-| train | 2018-09-20 | 2020-06-30 | ALS + LightGBM training |
-| val | 2020-07-01 | 2020-08-11 | Hyperparameter tuning, early stopping |
-| test | 2020-08-12 | 2020-09-22 | Final offline evaluation |
+| Split | Start      | End        | Rows   | Purpose                  |
+|-------|------------|------------|--------|--------------------------|
+| train | 2018-09-20 | 2020-06-30 | ~27.5M | ALS + LightGBM training  |
+| val   | 2020-07-01 | 2020-08-11 | ~1.8M  | Hyperparameter tuning    |
+| test  | 2020-08-12 | 2020-09-22 | ~1.8M  | Final offline evaluation |
 
-Dates are configurable via environment variables:
+**2M-row MVP subset** (auto-derived from 52-day window):
+
+```
+|<————————— train —————————>|<— val —>|<— test —>|
+2020-08-01              2020-09-08  2020-09-09  2020-09-16  2020-09-22
+```
+
+| Split | Start      | End        | Rows      | Unique users               |
+|-------|------------|------------|-----------|----------------------------|
+| train | 2020-08-01 | 2020-09-08 | 1,504,448 | 295,521                    |
+| val   | 2020-09-09 | 2020-09-15 |   255,241 | 72,019 (34,225 cold-start) |
+| test  | 2020-09-16 | 2020-09-22 |   240,311 | 68,984 (33,972 cold-start) |
+
+When the default cutoff dates (`2020-07-01`, `2020-08-12`) fall outside the loaded
+data range, `make_temporal_split` automatically derives proportional cutoffs
+(75% / 87.5% of the date range) so training is never empty.
+
+Dates are overridable via environment variables:
 
 ```bash
 export SHOPSIGNAL_VAL_START=2020-07-01
