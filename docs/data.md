@@ -67,33 +67,52 @@ data/raw/
 ## MVP subset strategy
 
 The full 31-million-row file cannot be loaded into laptop RAM efficiently and
-would make every training iteration slow.
+would make every training iteration slow. The loader reads the **latest N rows**
+from the tail of the file (which is sorted ascending by date), giving the most
+recent customer behaviour.
 
-**Default strategy: use the latest 2 million transactions.**
+Two presets are supported:
 
-The file is sorted ascending by date, so reading the tail gives the most recent
-customer behaviour — the most relevant signal for a recency-sensitive recommender.
+| Preset              | `SHOPSIGNAL_TX_ROWS` | Date range            | Coverage  | Peak RAM | Load time | Cold-start users (val / test) |
+|---------------------|----------------------|-----------------------|-----------|----------|-----------|-------------------------------|
+| **dev** (default)   | `2_000_000`          | 2020-08-01→2020-09-22 | 52 days   | ~0.4 GB  | ~30 s     | 47% / 49% (auto-split)        |
+| **modelling**       | `15_000_000`         | 2019-09-19→2020-09-22 | 12 months | ~4.7 GB  | ~185 s    | 15.7% / 17.8%                 |
 
-Measured characteristics of the 2M-row subset (latest 2M rows):
+The **dev** preset uses auto-derived proportional split dates (75%/87.5% of
+the date range) because the default cutoff dates (`2020-07-01`, `2020-08-12`)
+predate its data range. Cold-start is high because the 52-day window is too
+narrow for users to accumulate training history.
 
-- 359,886 unique customers
-- 34,678 unique articles
-- ~200 MB in memory
-- Covers 2020-08-01 → 2020-09-22 (52 days — the final 7.5 weeks of the dataset)
+The **modelling** preset uses the default split dates unchanged — training
+covers 2019-09-19 → 2020-06-30 (~9 months), which is enough history to
+reduce val cold-start to ~15%.
 
-> **Note:** 52 days is a shorter training window than ideal for collaborative filtering.
-> Load 5M+ rows (`SHOPSIGNAL_TX_ROWS=5000000`) for more historical depth once RAM allows.
-
-### Changing the subset size
-
-Set `SHOPSIGNAL_TX_ROWS` before running any pipeline step:
+To use the modelling preset:
 
 ```bash
-export SHOPSIGNAL_TX_ROWS=500000   # smaller — faster iteration
-export SHOPSIGNAL_TX_ROWS=5000000  # larger — more coverage, more RAM
+export SHOPSIGNAL_TX_ROWS=15_000_000
 ```
 
-The default is `2_000_000`. This is documented in `src/data/loader.py`.
+The cold-start reduction target is 10–15%. Getting below 15% user cold-start
+requires approximately 12+ months of history, which corresponds to ~15M rows
+of this dataset.
+
+### Measured split results (15M modelling preset)
+
+```text
+train : 14,613,037 rows  [2019-09-19 → 2020-06-30]  unique users: 974,490
+val   :  1,821,718 rows  [2020-07-01 → 2020-08-11]  unique users: 328,239
+test  :  1,565,245 rows  [2020-08-12 → 2020-09-22]  unique users: 309,018
+
+cold-start val  users: 44,659 / 328,239 = 13.6%
+cold-start test users: 48,662 / 309,018 = 15.7%
+cold-start val  items:  3,624 /  33,068 = 11.0%
+cold-start test items:  8,428 /  32,257 = 26.1%
+```
+
+> **Item cold-start in test** is structurally high (26%) because H&M releases
+> new products continuously; articles launched after 2020-08-12 cannot appear
+> in training regardless of how many rows are loaded.
 
 ## Running validation
 
