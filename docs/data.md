@@ -67,29 +67,52 @@ data/raw/
 ## MVP subset strategy
 
 The full 31-million-row file cannot be loaded into laptop RAM efficiently and
-would make every training iteration slow.
+would make every training iteration slow. The loader reads the **latest N rows**
+from the tail of the file (which is sorted ascending by date), giving the most
+recent customer behaviour.
 
-**Default strategy: use the latest 2 million transactions.**
+Two presets are supported:
 
-The file is sorted ascending by date, so reading the tail gives the most recent
-customer behaviour — the most relevant signal for a recency-sensitive recommender.
+| Preset              | `SHOPSIGNAL_TX_ROWS` | Date range            | Coverage  | Peak RAM | Load time | Cold-start users (val / test) |
+|---------------------|----------------------|-----------------------|-----------|----------|-----------|-------------------------------|
+| **dev** (default)   | `2_000_000`          | 2020-08-01→2020-09-22 | 52 days   | ~0.4 GB  | ~30 s     | 47% / 49% (auto-split)        |
+| **modelling**       | `15_000_000`         | 2019-09-19→2020-09-22 | 12 months | ~4.7 GB  | ~185 s    | 15.7% / 17.8%                 |
 
-Approximate characteristics of the 2M-row subset:
-- ~300–400 K unique customers
-- ~90–100 K unique articles
-- ~200 MB in memory
-- Covers roughly the final 4–6 months of the dataset
+The **dev** preset uses auto-derived proportional split dates (75%/87.5% of
+the date range) because the default cutoff dates (`2020-07-01`, `2020-08-12`)
+predate its data range. Cold-start is high because the 52-day window is too
+narrow for users to accumulate training history.
 
-### Changing the subset size
+The **modelling** preset uses the default split dates unchanged — training
+covers 2019-09-19 → 2020-06-30 (~9 months), which is enough history to
+reduce val cold-start to ~15%.
 
-Set `SHOPSIGNAL_TX_ROWS` before running any pipeline step:
+To use the modelling preset:
 
 ```bash
-export SHOPSIGNAL_TX_ROWS=500000   # smaller — faster iteration
-export SHOPSIGNAL_TX_ROWS=5000000  # larger — more coverage, more RAM
+export SHOPSIGNAL_TX_ROWS=15_000_000
 ```
 
-The default is `2_000_000`. This is documented in `src/data/loader.py`.
+The cold-start reduction target is 10–15%. Getting below 15% user cold-start
+requires approximately 12+ months of history, which corresponds to ~15M rows
+of this dataset.
+
+### Measured split results (15M modelling preset)
+
+```text
+train : 14,613,037 rows  [2019-09-19 → 2020-06-30]  unique users: 974,490
+val   :  1,821,718 rows  [2020-07-01 → 2020-08-11]  unique users: 328,239
+test  :  1,565,245 rows  [2020-08-12 → 2020-09-22]  unique users: 309,018
+
+cold-start val  users: 44,659 / 328,239 = 13.6%
+cold-start test users: 48,662 / 309,018 = 15.7%
+cold-start val  items:  3,624 /  33,068 = 11.0%
+cold-start test items:  8,428 /  32,257 = 26.1%
+```
+
+> **Item cold-start in test** is structurally high (26%) because H&M releases
+> new products continuously; articles launched after 2020-08-12 cannot appear
+> in training regardless of how many rows are loaded.
 
 ## Running validation
 
@@ -133,18 +156,37 @@ for fn, df in [(validate_transactions, tx), (validate_articles, art), (validate_
 
 See `src/data/split.py` for full documentation. Summary:
 
+**Full dataset** (31M rows — target for production runs):
+
 ```
 |<——————————————— train ————————————————>|<——— val ———>|<——— test ———>|
 2018-09-20                           2020-06-30   2020-07-01   2020-08-12   2020-09-22
 ```
 
-| Split | Start | End | Purpose |
-|-------|-------|-----|---------|
-| train | 2018-09-20 | 2020-06-30 | ALS + LightGBM training |
-| val | 2020-07-01 | 2020-08-11 | Hyperparameter tuning, early stopping |
-| test | 2020-08-12 | 2020-09-22 | Final offline evaluation |
+| Split | Start      | End        | Rows   | Purpose                  |
+|-------|------------|------------|--------|--------------------------|
+| train | 2018-09-20 | 2020-06-30 | ~27.5M | ALS + LightGBM training  |
+| val   | 2020-07-01 | 2020-08-11 | ~1.8M  | Hyperparameter tuning    |
+| test  | 2020-08-12 | 2020-09-22 | ~1.8M  | Final offline evaluation |
 
-Dates are configurable via environment variables:
+**2M-row MVP subset** (auto-derived from 52-day window):
+
+```
+|<————————— train —————————>|<— val —>|<— test —>|
+2020-08-01              2020-09-08  2020-09-09  2020-09-16  2020-09-22
+```
+
+| Split | Start      | End        | Rows      | Unique users               |
+|-------|------------|------------|-----------|----------------------------|
+| train | 2020-08-01 | 2020-09-08 | 1,504,448 | 295,521                    |
+| val   | 2020-09-09 | 2020-09-15 |   255,241 | 72,019 (34,225 cold-start) |
+| test  | 2020-09-16 | 2020-09-22 |   240,311 | 68,984 (33,972 cold-start) |
+
+When the default cutoff dates (`2020-07-01`, `2020-08-12`) fall outside the loaded
+data range, `make_temporal_split` automatically derives proportional cutoffs
+(75% / 87.5% of the date range) so training is never empty.
+
+Dates are overridable via environment variables:
 
 ```bash
 export SHOPSIGNAL_VAL_START=2020-07-01
