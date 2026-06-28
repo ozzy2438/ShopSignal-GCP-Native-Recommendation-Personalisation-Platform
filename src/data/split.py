@@ -111,7 +111,7 @@ class TemporalSplit:
 
     def _cold_start_count(self, df: pd.DataFrame) -> int:
         train_users = set(self.train["customer_id"].unique())
-        return int((~df["customer_id"].isin(train_users)).any())
+        return len(set(df["customer_id"].unique()) - train_users)
 
     def ground_truth(self, split: str = "test") -> dict[str, set[str]]:
         """Return {customer_id: set_of_purchased_article_ids} for val or test."""
@@ -168,6 +168,23 @@ def make_temporal_split(
     if ts_val >= ts_test:
         raise ValueError(
             f"val_start ({ts_val.date()}) must be before test_start ({ts_test.date()})"
+        )
+
+    # Auto-derive cutoffs when the requested val_start predates all data.
+    # This happens when the 2M-row MVP subset (latest rows only) covers a shorter
+    # window than the hard-coded defaults. In that case we fall back to a
+    # 75/87.5/100 % date-range split so training is never empty.
+    data_min = df["t_dat"].min()
+    if ts_val < data_min:
+        total_days = (df["t_dat"].max() - data_min).days
+        ts_val = data_min + pd.Timedelta(days=round(total_days * 0.75))
+        ts_test = data_min + pd.Timedelta(days=round(total_days * 0.875))
+        logger.warning(
+            "val_start predates data range (%s); auto-derived cutoffs: "
+            "val_start=%s, test_start=%s",
+            data_min.date(),
+            ts_val.date(),
+            ts_test.date(),
         )
 
     train = df[df["t_dat"] < ts_val].copy()
