@@ -36,7 +36,7 @@ jobs:
       data-valid: ${{ steps.validate.outputs.data-valid }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -87,7 +87,7 @@ jobs:
       model-artifact: ${{ steps.train.outputs.model-artifact }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -144,7 +144,7 @@ jobs:
       gate-passed: ${{ steps.evaluate.outputs.gate-passed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5

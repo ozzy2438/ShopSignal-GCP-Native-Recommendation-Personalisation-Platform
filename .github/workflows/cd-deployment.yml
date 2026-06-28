@@ -67,7 +67,7 @@ jobs:
       url: "https://staging-api.shopsignal.example.com"  # TODO: replace with real URL
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: ⚠️ SIMULATION — GCP credentials not configured
         run: |
@@ -142,7 +142,7 @@ jobs:
       url: "https://api.shopsignal.example.com"  # TODO: replace with real URL
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: ⚠️ SIMULATION — GCP credentials not configured
         run: |
