@@ -110,6 +110,7 @@ jobs:
         with:
           context: .
           push: false   # TODO: set to true when Artifact Registry is configured
+          load: true    # Load image into local Docker daemon for health check
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image-tag }}
             ${{ env.IMAGE_NAME }}:latest
