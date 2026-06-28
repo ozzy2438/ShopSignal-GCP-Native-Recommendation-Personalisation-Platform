@@ -73,9 +73,9 @@ source = ["src"]
 omit = [
     "*/tests/*",
     "*/__init__.py",
-    "src/data/*",      # placeholder — BigQuery upload, not yet implemented
-    "src/features/*",  # placeholder — feature engineering, not yet implemented
-    "src/models/*",    # placeholder — ALS + LightGBM, not yet implemented
+    "src/data/*",              # requires external CSV files — covered by integration run
+    "src/features/*",          # placeholder — feature engineering, not yet implemented
+    "src/models/ranker.py",    # placeholder — LightGBM, not yet implemented
 ]
 
 [tool.coverage.report]
