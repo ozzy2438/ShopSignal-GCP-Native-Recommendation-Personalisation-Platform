@@ -79,7 +79,7 @@ jobs:
           echo "Image tag: ${IMAGE_TAG}"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # ── PLACEHOLDER: Registry push ─────────────────────────────────────────
       # When GCP Artifact Registry credentials are provided, replace the
