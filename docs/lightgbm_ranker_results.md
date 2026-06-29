@@ -11,7 +11,9 @@ iterations=40, regularization=0.01, alpha=40, `OPENBLAS_NUM_THREADS=1`).
 - Test:  1,565,245 rows (2020-08-12 → 2020-09-22) — evaluated once, never tuned
 - Leakage-safe temporal split; features computed strictly before the label window.
 - Ranking dataset: 270,134 rows, 5,244 user groups, 7,934 positive / 262,200 negative.
-- best_iteration = 76; LGBMRanker lambdarank, val NDCG@10 = 0.289.
+- best_iteration = 76; LGBMRanker lambdarank internal early-stopping NDCG@10 =
+  0.289. This grouped ranker metric is not the end-to-end recommendation NDCG reported
+  below.
 
 ## Top-10 metrics (known users)
 

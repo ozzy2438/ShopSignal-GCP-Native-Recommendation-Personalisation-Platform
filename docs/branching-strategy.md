@@ -4,8 +4,9 @@ ShopSignal uses **trunk-based development** with short-lived feature branches.
 
 ## Core Rule
 
-`main` is always in a deployable state.  
-Every change reaches `main` through a Pull Request with at least one CI check passing and one human approval.
+The working policy is to keep `main` buildable and releasable. Changes should reach
+`main` through a Pull Request with required CI checks and human approval; enforcement
+depends on the repository protection settings described in `manual-github-settings.md`.
 
 ## Branch Naming
 
@@ -81,5 +82,7 @@ docs: add architecture diagram to README
 
 ## Protected Branches
 
-Only `main` has branch protection enabled.  
-Feature branches are personal — push force is allowed while the PR is open.
+`main` should be protected according to `manual-github-settings.md`. Repository settings
+must be verified in GitHub; configuration is not asserted by files in this repository.
+If a personal feature branch must be rebased, use `--force-with-lease`, never a blind
+force push.

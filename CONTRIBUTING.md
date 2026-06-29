@@ -222,7 +222,7 @@ To manually rerun a failed check without pushing new code:
 
 ## 11. When a PR is Ready to Merge
 
-All of the following must be true:
+Under the recommended branch-protection policy, all of the following must be true:
 
 - [ ] All required CI checks are green ✅
 - [ ] At least 1 reviewer has approved
@@ -242,12 +242,12 @@ git push --force-with-lease origin feat/my-feature
 
 ## 12. How Squash Merging Works
 
-ShopSignal uses **squash merging** exclusively.
+ShopSignal's recommended merge strategy is **squash merging**.
 
 When you merge a PR:
 1. All commits on the branch are combined into **one single commit** on `main`
 2. The commit message is the PR title (edit it before confirming)
-3. The branch is automatically deleted after merge
+3. The branch can be automatically deleted after merge when that repository setting is enabled
 
 This keeps `main` history clean — each entry represents one complete, reviewed feature.
 

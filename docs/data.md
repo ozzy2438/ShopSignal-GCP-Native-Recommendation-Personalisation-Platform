@@ -1,41 +1,22 @@
-# Data Guide — ShopSignal
+# Data and Evaluation Guide
 
 ## Source dataset
 
-**H&M Personalized Fashion Recommendations** (Kaggle competition dataset)
+ShopSignal uses the **H&M Personalized Fashion Recommendations** Kaggle dataset.
 
-| File | Size | Rows | Description |
-|------|------|------|-------------|
-| `transactions_train.csv` | ~3.5 GB | ~31 million | Customer purchase events |
-| `articles.csv` | ~54 MB | ~105,000 | Product metadata |
-| `customers.csv` | ~187 MB | ~1.37 million | Customer attributes |
+| File | Approximate source size | Purpose |
+|---|---:|---|
+| `transactions_train.csv` | 31 million rows / 3.5 GB | Implicit purchase events |
+| `articles.csv` | 105,000 rows / 54 MB | Product attributes |
+| `customers.csv` | 1.37 million rows / 187 MB | Customer attributes |
 
-Why H&M?
-- Real product names and descriptions (enables semantic search later)
-- Production-scale volume
-- Retail/fashion domain — closest public benchmark to eCommerce
+H&M is a useful public benchmark because it contains a realistic retail catalogue,
+repeat purchase behaviour, continuous product introduction, and enough history to expose
+temporal drift and cold-start limitations.
 
-## Download instructions
+## Download and local placement
 
-### Prerequisites
-
-1. Create an account at [kaggle.com](https://www.kaggle.com)
-2. Go to **Account → Settings → API → Create New API Token** — this downloads `kaggle.json`
-3. Place and protect the file:
-
-```bash
-mkdir -p ~/.kaggle
-mv ~/Downloads/kaggle.json ~/.kaggle/
-chmod 600 ~/.kaggle/kaggle.json
-```
-
-4. Install the CLI:
-
-```bash
-pip install kaggle
-```
-
-### Download and extract
+Accept the competition terms on Kaggle, install/configure its CLI, then run:
 
 ```bash
 kaggle competitions download \
@@ -46,163 +27,147 @@ unzip data/raw/h-and-m-personalized-fashion-recommendations.zip \
   -d data/raw/
 ```
 
-Expected result:
+Expected files:
 
-```
+```text
 data/raw/
 ├── articles.csv
 ├── customers.csv
 └── transactions_train.csv
 ```
 
-### Why raw files are excluded from Git
+The raw files are not committed. They are large, this repository intentionally does not
+redistribute the competition dataset, and Git is not an artifact store. Trained model
+bundles are also omitted; serialized files below `models/` are gitignored.
 
-`data/raw/` is listed in `.gitignore` because:
+## Local loading presets
 
-- `transactions_train.csv` is ~3.5 GB — far above GitHub's 100 MB per-file limit
-- Committing data to Git creates a permanent copy in history that cannot be fully removed
-- The Kaggle terms of service do not permit redistribution
-- Re-downloading from Kaggle is reproducible and free
+`src/data/loader.py` reads the latest N rows from the chronologically ordered transaction
+file. Set `SHOPSIGNAL_TX_ROWS` before loading:
 
-## MVP subset strategy
-
-The full 31-million-row file cannot be loaded into laptop RAM efficiently and
-would make every training iteration slow. The loader reads the **latest N rows**
-from the tail of the file (which is sorted ascending by date), giving the most
-recent customer behaviour.
-
-Two presets are supported:
-
-| Preset              | `SHOPSIGNAL_TX_ROWS` | Date range            | Coverage  | Peak RAM | Load time | Cold-start users (val / test) |
-|---------------------|----------------------|-----------------------|-----------|----------|-----------|-------------------------------|
-| **dev** (default)   | `2_000_000`          | 2020-08-01→2020-09-22 | 52 days   | ~0.4 GB  | ~30 s     | 47% / 49% (auto-split)        |
-| **modelling**       | `15_000_000`         | 2019-09-19→2020-09-22 | 12 months | ~4.7 GB  | ~185 s    | 15.7% / 17.8%                 |
-
-The **dev** preset uses auto-derived proportional split dates (75%/87.5% of
-the date range) because the default cutoff dates (`2020-07-01`, `2020-08-12`)
-predate its data range. Cold-start is high because the 52-day window is too
-narrow for users to accumulate training history.
-
-The **modelling** preset uses the default split dates unchanged — training
-covers 2019-09-19 → 2020-06-30 (~9 months), which is enough history to
-reduce val cold-start to ~15%.
-
-To use the modelling preset:
+| Preset | Rows | Observed date range | Intended use |
+|---|---:|---|---|
+| Development (default) | 2,000,000 | 2020-08-01 to 2020-09-22 | Fast local iteration |
+| Modelling | 15,000,000 | 2019-09-19 to 2020-09-22 | Final evidence run |
 
 ```bash
-export SHOPSIGNAL_TX_ROWS=15_000_000
+export SHOPSIGNAL_TX_ROWS=15000000
+export OPENBLAS_NUM_THREADS=1
 ```
 
-The cold-start reduction target is 10–15%. Getting below 15% user cold-start
-requires approximately 12+ months of history, which corresponds to ~15M rows
-of this dataset.
+The final reports use the modelling preset. Peak RAM for the complete two-stage
+evaluation was approximately 6.3 GB; runtime was approximately 1 hour 56 minutes.
+Do not rerun that job for ordinary development or documentation checks.
 
-### Measured split results (15M modelling preset)
+## Validation
+
+The validators enforce schema and value constraints before modelling. Transaction checks
+cover required IDs, dates, positive prices, and sales-channel values; article and customer
+checks cover required identifiers and duplicates. Soft warnings retain potentially valid
+repeat-purchase or date-range anomalies for inspection.
+
+```bash
+python - <<'PY'
+from src.data.loader import load_articles, load_customers, load_transactions
+from src.data.validate import validate_articles, validate_customers, validate_transactions
+
+frames = (load_transactions(), load_articles(), load_customers())
+validators = (validate_transactions, validate_articles, validate_customers)
+
+for validate, frame in zip(validators, frames, strict=True):
+    print(validate(frame).summary())
+PY
+```
+
+The local CSV loader/validator path is implemented. `src/data/upload_to_bq.py` is an
+interface stub, so this repository does not claim that the evidence dataset was uploaded
+to BigQuery. The dbt directory provides BigQuery-oriented transformation models for a
+future connected cloud path.
+
+## Leakage-safe temporal split
+
+Randomly splitting transactions would let a model learn from purchases that occur after
+the interactions it is asked to predict. ShopSignal instead mirrors deployment by using
+past interactions to predict later windows:
 
 ```text
-train : 14,613,037 rows  [2019-09-19 → 2020-06-30]  unique users: 974,490
-val   :  1,821,718 rows  [2020-07-01 → 2020-08-11]  unique users: 328,239
-test  :  1,565,245 rows  [2020-08-12 → 2020-09-22]  unique users: 309,018
-
-cold-start val  users: 44,659 / 328,239 = 13.6%
-cold-start test users: 48,662 / 309,018 = 15.7%
-cold-start val  items:  3,624 /  33,068 = 11.0%
-cold-start test items:  8,428 /  32,257 = 26.1%
+train: 2019-09-19 ───────────── 2020-06-30
+validation:                         2020-07-01 ── 2020-08-11
+test:                                                2020-08-12 ── 2020-09-22
 ```
 
-> **Item cold-start in test** is structurally high (26%) because H&M releases
-> new products continuously; articles launched after 2020-08-12 cannot appear
-> in training regardless of how many rows are loaded.
+### Final modelling split
 
-## Running validation
+| Split | Rows | Purpose |
+|---|---:|---|
+| Train | 11,613,037 | Fit popularity, ALS, and train-only feature aggregates |
+| Validation | 1,821,718 | ALS selection and ranker early stopping/model selection |
+| Test | 1,565,245 | One final untouched model comparison |
+
+The split rows total 15,000,000. The fitted ALS matrix contains 899,083 users and
+62,078 items.
+
+Leakage controls are enforced in code:
+
+1. `make_temporal_split` creates non-overlapping date windows.
+2. Popularity and ALS receive only `split.train`.
+3. User and item ranking features are aggregated only from training rows.
+4. Labels come from later ground-truth windows and are not inputs to the features.
+5. Training purchases are excluded from ALS recommendations during evaluation.
+6. The test window is not used for tuning.
+
+For the 2M development preset, the default calendar cutoffs predate the loaded range.
+`make_temporal_split` therefore derives proportional cutoffs at 75% and 87.5% of that
+range. Those shorter-window metrics are not directly comparable with the final 15M run.
+
+## Evaluation populations and cold start
+
+Known-user metrics average over users who appear in training and have ground truth in the
+evaluation window. New users have no ALS factor, so they are excluded from those offline
+metrics and reported separately. At serving time they receive the popularity fallback.
+
+New items remain in validation/test ground truth. This is deliberately strict: ALS cannot
+retrieve an item with no training interaction, and excluding it would hide a real
+catalogue-coverage problem.
+
+| Diagnostic | Validation | Test |
+|---|---:|---:|
+| Known users evaluated for Recall@200 | 276,563 | 254,057 |
+| Cold-start users | 15.7% | 17.8% |
+| Cold-start items | 11.4% (3,780) | 26.4% (8,500) |
+
+Test Recall@200 is lower than validation (0.0578 vs 0.0843) primarily because:
+
+- H&M introduced substantially more test-period items that had no training factor;
+- 19.9% of evaluated test users purchased only cold-start items, making ALS recall
+  structurally zero for those users; and
+- the test window is farther from the training cutoff, increasing temporal drift.
+
+The similar validation/test ground-truth size per user means denominator growth is not
+the main cause.
+
+## Why compare popularity, ALS, and LightGBM?
+
+- **Popularity** is the lowest-complexity, leakage-safe benchmark and the serving fallback.
+- **ALS** tests whether collaborative implicit-feedback structure improves candidate
+  retrieval beyond global frequency.
+- **LightGBM LambdaMART** tests whether train-only behavioural features and ALS scores can
+  improve top-10 ordering within the same candidate set.
+
+This decomposition prevents a ranker result from concealing weak retrieval. Recall@200
+measures the candidate ceiling; NDCG@10, Recall@10, and MAP@10 measure final ordering.
+
+## OpenBLAS reproducibility
+
+Use `OPENBLAS_NUM_THREADS=1` for ALS evidence runs. The `implicit` library manages its own
+parallel work, and a second OpenBLAS thread pool caused oversubscription on the validation
+machine. Observed tuning fits were roughly three times slower without the limit.
 
 ```bash
-python -c "
-from src.data.loader import load_transactions, load_articles, load_customers
-from src.data.validate import validate_transactions, validate_articles, validate_customers
-
-tx  = load_transactions()
-art = load_articles()
-cst = load_customers()
-
-for fn, df in [(validate_transactions, tx), (validate_articles, art), (validate_customers, cst)]:
-    report = fn(df)
-    print(report.summary())
-"
+OPENBLAS_NUM_THREADS=1 SHOPSIGNAL_TX_ROWS=15000000 \
+  python scripts/train_ranker.py
 ```
 
-### What validation checks
-
-**Transactions:**
-
-| Check | Type | Reason |
-|-------|------|--------|
-| Required columns present | Hard | Pipeline cannot proceed without them |
-| Null `customer_id` | Hard | Cannot build user-item matrix |
-| Null `article_id` | Hard | Cannot build user-item matrix |
-| `t_dat` is datetime | Hard | Split and recency features require dates |
-| Null or invalid dates | Hard | Corrupted rows |
-| `sales_channel_id` ∈ {1, 2} | Hard | Only store (1) and online (2) are valid |
-| `price` > 0 and not null | Hard | Implicit feedback weighting uses price |
-| Non-numeric `article_id` sample | Soft | Highlights ID format inconsistencies |
-| Duplicate (customer, article, date) rows | Soft | These are legitimate repeat purchases, not errors |
-| Date range outside expected window | Soft | Surfaced for awareness only |
-
-**Articles:** required columns, no null or duplicate `article_id`.
-
-**Customers:** required `customer_id`, no nulls or duplicates.
-
-## Temporal split design
-
-See `src/data/split.py` for full documentation. Summary:
-
-**Full dataset** (31M rows — target for production runs):
-
-```
-|<——————————————— train ————————————————>|<——— val ———>|<——— test ———>|
-2018-09-20                           2020-06-30   2020-07-01   2020-08-12   2020-09-22
-```
-
-| Split | Start      | End        | Rows   | Purpose                  |
-|-------|------------|------------|--------|--------------------------|
-| train | 2018-09-20 | 2020-06-30 | ~27.5M | ALS + LightGBM training  |
-| val   | 2020-07-01 | 2020-08-11 | ~1.8M  | Hyperparameter tuning    |
-| test  | 2020-08-12 | 2020-09-22 | ~1.8M  | Final offline evaluation |
-
-**2M-row MVP subset** (auto-derived from 52-day window):
-
-```
-|<————————— train —————————>|<— val —>|<— test —>|
-2020-08-01              2020-09-08  2020-09-09  2020-09-16  2020-09-22
-```
-
-| Split | Start      | End        | Rows      | Unique users               |
-|-------|------------|------------|-----------|----------------------------|
-| train | 2020-08-01 | 2020-09-08 | 1,504,448 | 295,521                    |
-| val   | 2020-09-09 | 2020-09-15 |   255,241 | 72,019 (34,225 cold-start) |
-| test  | 2020-09-16 | 2020-09-22 |   240,311 | 68,984 (33,972 cold-start) |
-
-When the default cutoff dates (`2020-07-01`, `2020-08-12`) fall outside the loaded
-data range, `make_temporal_split` automatically derives proportional cutoffs
-(75% / 87.5% of the date range) so training is never empty.
-
-Dates are overridable via environment variables:
-
-```bash
-export SHOPSIGNAL_VAL_START=2020-07-01
-export SHOPSIGNAL_TEST_START=2020-08-12
-```
-
-### Why this split prevents data leakage
-
-1. Training data contains zero rows from the val or test period
-2. Feature engineering (recency, purchase counts) is computed only on training rows
-3. dbt mart queries will be parameterised to exclude val/test dates
-
-### Cold-start handling
-
-| Scenario | Treatment |
-|----------|-----------|
-| User in val/test, not in train | Excluded from metric computation; counted and reported |
-| Item in val/test, not in train | Included in ground truth; ALS cannot retrieve it; reported as cold-start item recall gap |
-| Serving | Popularity fallback for unknown users |
+This command is documented for reproducibility, not as part of the routine test suite.
+See `docs/als_tuning_results.md` and `docs/lightgbm_ranker_results.md` before considering
+an expensive rerun.
