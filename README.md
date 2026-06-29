@@ -28,12 +28,12 @@ ShopSignal is a production-grade, GCP-native two-stage recommendation platform:
 |-----------|--------|
 | Repository structure | ✅ Complete |
 | CI/CD workflows | ✅ GitHub Actions |
-| FastAPI placeholder | ✅ `/health` · `/version` · `/recommend` (mock) |
-| Unit tests | ✅ metrics + serve |
+| FastAPI service | ✅ `/health` · `/version` · `/recommend` · `/recommend/batch` (two-stage, mock fallback) |
+| Unit tests | ✅ metrics + serve + two-stage |
 | Docker build | ✅ Multi-stage |
 | dbt models | 📄 SQL placeholders (BigQuery not yet provisioned) |
-| ALS model | 🔲 Planned — `feat/two-stage-model` |
-| LightGBM ranker | 🔲 Planned — `feat/two-stage-model` |
+| ALS model | ✅ Stage 1 — Recall@200 0.084 (#17) |
+| LightGBM ranker | ✅ Stage 2 — beats raw ALS, NDCG@10 +33% val (#19) |
 | Cloud Run deployment | 🔲 Planned — after GCP approval |
 
 ---
@@ -146,9 +146,25 @@ shopsignal/
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Liveness probe |
-| `GET` | `/version` | App version and model stage |
-| `POST` | `/recommend` | Top-N recommendations (mock until model is trained) |
+| `GET` | `/version` | App version + loaded model metadata |
+| `POST` | `/recommend` | Two-stage top-N for one customer (ALS→LGBM, popularity fallback) |
+| `POST` | `/recommend/batch` | Two-stage top-N for a list of customers |
 | `GET` | `/docs` | Interactive Swagger UI |
+
+### End-to-end serving flow
+
+```
+request → ALS top-200 candidates → LightGBM re-rank → top-N
+              │ (cold-start: no ALS factor)
+              └────────────→ popularity top-N fallback
+```
+
+Models load from a saved bundle at `SHOPSIGNAL_MODEL_DIR` (ALS + LightGBM +
+popularity + feature tables + schema). Without a bundle the API serves
+deterministic mock data, so it runs in CI and a fresh clone with no dataset.
+`source` reports `als+lgbm`, `popularity`, or `mock`. Final full-preset metrics:
+two-stage NDCG@10 **0.0136 val / 0.0094 test** vs raw ALS 0.0102 / 0.0089 vs
+popularity 0.0056 / 0.0065 (see `docs/lightgbm_ranker_results.md`).
 
 ---
 

@@ -80,9 +80,12 @@ H&M Transaction Data (Kaggle)
 
 ### FastAPI
 - Serves recommendations in real-time
-- `/health` for Cloud Run health probes
-- `/recommend` loads pre-computed candidates from BigQuery (batch path)
-- Future: real-time ALS + LightGBM inference
+- `/health` for Cloud Run health probes; `/version` exposes loaded model metadata
+- `/recommend` and `/recommend/batch` run the two-stage flow: ALS top-200 →
+  LightGBM re-rank → top-N, with popularity fallback for cold-start users
+- Models load from `SHOPSIGNAL_MODEL_DIR` (ALS + LightGBM + popularity + feature
+  tables + schema); mock data when no bundle so CI runs without the dataset
+- Future: read pre-computed candidates from the BigQuery batch serving table
 
 ### GitHub Actions
 - PR quality gates: lint, format, test, Docker build

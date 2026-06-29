@@ -33,7 +33,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
+import joblib
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -122,6 +124,25 @@ class PopularityRecommender:
     def _check_fitted(self) -> None:
         if not self._fitted:
             raise RuntimeError("Model has not been fitted. Call .fit(train_df) first.")
+
+    def save(self, path: str | Path) -> None:
+        """Persist counts and per-user seen items to a single joblib file."""
+        self._check_fitted()
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump({"counts": self._counts, "user_seen": self._user_seen}, path, compress=3)
+        logger.info("PopularityRecommender saved → %s", path)
+
+    @classmethod
+    def load(cls, path: str | Path) -> PopularityRecommender:
+        """Load a previously saved PopularityRecommender from disk."""
+        data = joblib.load(path)
+        obj = cls()
+        obj._counts = data["counts"]
+        obj._user_seen = data["user_seen"]
+        obj._top_k_cache = {}
+        obj._fitted = True
+        return obj
 
     @property
     def n_articles(self) -> int:
