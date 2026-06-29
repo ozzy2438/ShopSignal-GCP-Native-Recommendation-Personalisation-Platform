@@ -1,154 +1,89 @@
-# Manual GitHub Settings
+# GitHub and Future GCP Settings
 
-This document lists every GitHub setting that must be configured through the GitHub web interface — settings that cannot be set by code or scripts in this repository.
+This is a recommended configuration checklist. It does not claim that repository settings,
+GCP resources, secrets, or live environments have already been configured.
 
----
+## Repository settings
 
-## Branch Protection — `main`
+Recommended `main` protection:
 
-**Location:** `GitHub → Repository → Settings → Branches → Add rule`
+- require a pull request and one approval;
+- dismiss stale approvals after new commits;
+- require conversation resolution;
+- require the PR quality-gate checks;
+- disallow force pushes and branch deletion; and
+- automatically delete merged head branches.
 
-**Branch name pattern:** `main`
-
-### Rules to enable
-
-| Setting | Value | Why |
-|---------|-------|-----|
-| Require a pull request before merging | ✅ | Prevents direct pushes to main |
-| Required number of approvals before merging | `1` | Minimum peer review |
-| Dismiss stale pull request approvals when new commits are pushed | ✅ | Forces re-review after updates |
-| Require review from Code Owners | ✅ (optional) | Enforces CODEOWNERS |
-| Require conversation resolution before merging | ✅ | No unresolved comments |
-| Require status checks to pass before merging | ✅ | CI must be green |
-| Require branches to be up to date before merging | ✅ | No stale code merges |
-| Do not allow bypassing the above settings | ✅ | Applies to admins too |
-| Allow force pushes | ❌ | Prevents history rewrite |
-| Allow deletions | ❌ | Prevents accidental branch deletion |
-
-### Required status checks (exact names — must match GitHub Actions job names)
-
-After the CI workflow has run once, search for and add these checks:
-
-```
-validate-repository
-lint
-format-check
-unit-tests
-api-smoke-test
-docker-build
-```
-
----
+Enable squash merging and use the PR title as a Conventional Commit-style squash message.
 
 ## GitHub Environments
 
-**Location:** `GitHub → Repository → Settings → Environments`
+If real deployment is approved, create `staging` and `production` environments. Require a
+reviewer for both and consider a production wait timer. Until Cloud Run exists, do not set
+placeholder URLs as evidence of deployed environments.
 
-Create three environments:
+Suggested environment secrets/variables:
 
-### `development`
-- Protection rules: None
-- Secrets: None required
+- `GCP_PROJECT_ID`
+- `WORKLOAD_IDENTITY_PROVIDER`
+- `SERVICE_ACCOUNT_EMAIL`
+- `CLOUD_RUN_SERVICE_NAME`
+- `GCP_REGION`
 
-### `staging`
-- Required reviewers: Add your GitHub username
-- Secrets to add:
-  - `GCP_PROJECT_ID`
-  - `WORKLOAD_IDENTITY_PROVIDER`
-  - `SERVICE_ACCOUNT_EMAIL`
-  - `CLOUD_RUN_SERVICE_NAME`
-  - `GCP_REGION`
+Prefer environment-scoped values so staging and production cannot accidentally share
+targets.
 
-### `production`
-- Required reviewers: Add your GitHub username
-- Wait timer: `5` minutes
-- Secrets: Same structure as staging (different values)
+## GCP prerequisites
 
----
+Before enabling the commented workflow steps:
 
-## Repository Settings
+1. approve a project and cost budget;
+2. create Artifact Registry and Cloud Run resources;
+3. configure GitHub OIDC through Workload Identity Federation;
+4. grant only the registry/deployment permissions required by each environment;
+5. verify image-digest and revision rollback procedures; and
+6. replace example domains with real outputs from the deployment action.
 
-**Location:** `GitHub → Repository → Settings → General`
+Do not create or commit service-account JSON keys.
 
-| Setting | Recommended value |
-|---------|------------------|
-| Default branch | `main` |
-| Allow squash merging | ✅ |
-| Allow merge commits | ❌ |
-| Allow rebase merging | ❌ |
-| Automatically delete head branches | ✅ |
+## CODEOWNERS and security
 
----
+Review `.github/CODEOWNERS` before requiring code-owner approval; team aliases must map to
+real users/teams. Enable dependency alerts, Dependabot security updates, and secret
+scanning where repository settings permit.
 
-## Actions Permissions
+## Recruiter-facing GitHub presentation
 
-**Location:** `GitHub → Repository → Settings → Actions → General`
+These changes affect repository metadata and should be applied manually by the owner,
+not silently from this documentation branch.
 
-| Setting | Recommended value |
-|---------|------------------|
-| Actions permissions | Allow all actions and reusable workflows |
-| Fork pull request workflows | Require approval for first-time contributors |
-| Workflow permissions | Read repository contents and packages |
-| Allow GitHub Actions to create and approve pull requests | ✅ (required for automated PR creation) |
+**Suggested description**
 
----
+> Two-stage retail recommender: implicit ALS retrieval, LightGBM LambdaMART ranking,
+> FastAPI/Docker serving, temporal evaluation, and GCP-oriented MLOps.
 
-## Dependabot
+**Suggested topics**
 
-Dependabot is configured via `.github/dependabot.yml` (already in this repository).  
-After pushing that file, verify it is active:
+`recommendation-system`, `machine-learning`, `learning-to-rank`, `lightgbm`,
+`implicit-feedback`, `fastapi`, `docker`, `github-actions`, `mlops`, `bigquery`, `dbt`,
+`gcp`
 
-**Location:** `GitHub → Repository → Insights → Dependency graph → Dependabot`
+**Suggested About text**
 
----
+> Leakage-safe two-stage recommendation platform evaluated on 15M retail transactions;
+> packaged with FastAPI, Docker, and tested CI/CD simulation.
 
-## Secrets Configured by CI/CD Team
+**Suggested pinned-repository summary**
 
-These secrets must be added at the **repository level** for workflows that run on `main`:
+> Built and evaluated an ALS → LambdaMART recommender on 15M H&M transactions, improving
+> test NDCG@10 by ~6% and Recall@10 by ~12% over raw ALS, with cold-start fallback and
+> containerised API serving.
 
-| Secret name | Used by | How to obtain |
-|-------------|---------|---------------|
-| `GCP_PROJECT_ID` | deployment workflow | GCP Console → Project info |
-| `WORKLOAD_IDENTITY_PROVIDER` | deployment workflow | GCP IAM → Workload Identity |
-| `SERVICE_ACCOUNT_EMAIL` | deployment workflow | GCP IAM → Service Accounts |
-| `ARTIFACT_REGISTRY_REPO` | build workflow | GCP Artifact Registry |
+Avoid metadata that says the service is live, production-deployed, powered by Vertex AI,
+or has generated commercial/online uplift.
 
-**To add a secret:**  
-`GitHub → Repository → Settings → Secrets and variables → Actions → New repository secret`
+## Licence metadata
 
----
-
-## Code Owners
-
-The file `.github/CODEOWNERS` is already in this repository.  
-To make CODEOWNERS effective, replace placeholder usernames with real GitHub usernames:
-
-```
-# Replace @platform-team, @data-engineering-team, @data-science-team
-# with the actual GitHub usernames of your collaborators
-```
-
----
-
-## Security Advisories
-
-**Location:** `GitHub → Repository → Security → Security advisories`
-
-Enable:
-- Dependency vulnerability alerts: ✅
-- Dependabot security updates: ✅
-- Secret scanning: ✅ (prevents accidental credential commits)
-
----
-
-## Settings Verified as Automatically Applied
-
-The following are handled by files already in this repository (no manual action needed):
-
-| Item | File |
-|------|------|
-| Dependabot schedule | `.github/dependabot.yml` |
-| PR template | `.github/PULL_REQUEST_TEMPLATE.md` |
-| Issue templates | `.github/ISSUE_TEMPLATE/` |
-| CODEOWNERS routing | `.github/CODEOWNERS` |
-| CI/CD workflows | `.github/workflows/` |
+`pyproject.toml` currently declares MIT, but the repository does not contain a licence
+file. Confirm code/data ownership and the intended terms before adding `LICENSE`; do not
+present the project as licensed until that legal choice is made explicitly.
