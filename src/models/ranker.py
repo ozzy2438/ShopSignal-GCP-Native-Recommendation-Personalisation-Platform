@@ -69,17 +69,20 @@ class LightGBMRanker:
         callbacks = []
         fit_kwargs: dict = {"group": group, "eval_at": ndcg_eval_at}
         if eval_set is not None and eval_group is not None:
-            fit_kwargs["eval_set"] = [eval_set]
+            ex, ey = eval_set
+            fit_kwargs["eval_set"] = [(np.ascontiguousarray(ex, dtype=np.float64), ey)]
             fit_kwargs["eval_group"] = [eval_group]
             if early_stopping_rounds:
                 callbacks = [early_stopping(early_stopping_rounds), log_evaluation(0)]
-        self._model.fit(X, y, callbacks=callbacks, **fit_kwargs)
+        x_arr = np.ascontiguousarray(X, dtype=np.float64)
+        self._model.fit(x_arr, y, callbacks=callbacks, **fit_kwargs)
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:  # noqa: N803
         """Predict relevance scores for a feature matrix."""
         self._check_fitted()
-        return self._model.predict(X[self.feature_cols])
+        x_arr = np.ascontiguousarray(X[self.feature_cols], dtype=np.float64)
+        return self._model.predict(x_arr)
 
     def rank(self, candidates: list[str], features: pd.DataFrame) -> list[str]:
         """Return candidates sorted by descending predicted score."""
