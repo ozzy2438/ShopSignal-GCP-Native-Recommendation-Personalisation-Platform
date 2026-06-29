@@ -15,8 +15,6 @@ import logging
 import os
 from pathlib import Path
 
-from src.models.two_stage import TwoStageRecommender
-
 logger = logging.getLogger(__name__)
 
 _REQUIRED = ("als_model.joblib", "lgbm_ranker.joblib", "popularity.joblib", "features.joblib")
@@ -26,7 +24,7 @@ class ModelRegistry:
     """Holds a single loaded TwoStageRecommender (or nothing)."""
 
     def __init__(self) -> None:
-        self.model: TwoStageRecommender | None = None
+        self.model = None
         self.model_dir: str | None = None
         self.meta: dict = {}
 
@@ -44,6 +42,10 @@ class ModelRegistry:
             logger.warning("Model bundle incomplete in %s — serving mock.", model_dir)
             return
         try:
+            # Import the heavy ML stack lazily so the API boots fast (and the
+            # Docker health check passes) when no model bundle is configured.
+            from src.models.two_stage import TwoStageRecommender
+
             self.model = TwoStageRecommender.load(d)
             self.model_dir = str(d)
             schema = d / "feature_schema.json"
