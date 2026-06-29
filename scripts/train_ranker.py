@@ -85,24 +85,44 @@ def main() -> None:
     two = TwoStageRecommender(als, ranker, pop, n_candidates=N_CAND)
     two.fit_features(split.train)
 
-    test_gt = split.ground_truth("test")
-    known = [u for u in test_gt if u in train_users]
-    random.shuffle(known)
-    known = known[:MAX_TEST_USERS]
-    print(f"\nTEST known users={len(known)}")
-    for name, fn in [
-        ("popularity", lambda u: pop.recommend(u, k=K)),
-        ("als_raw", lambda u: als.recommend(u, k=K)),
-        ("two_stage", lambda u: two.recommend(u, k=K)),
-    ]:
-        nd, re, mp, n = _avg(fn, test_gt, known)
-        print(f"  {name:11s} NDCG@10={nd:.4f} Recall@10={re:.4f} MAP@10={mp:.4f} n={n}")
+    best_iter = getattr(ranker._model, "best_iteration_", None)
+    pos = int(ds.y.sum())
+    neg = len(ds.y) - pos
+    importances = dict(
+        sorted(
+            zip(ds.feature_cols, ranker._model.feature_importances_.tolist(), strict=False),
+            key=lambda kv: -kv[1],
+        )
+    )
+    print(f"\ndataset rows={len(ds.X)} users={len(ds.group)} pos={pos} neg={neg}")
+    print(f"best_iteration={best_iter}")
+    print("feature_importance:", importances)
+
+    report = {"best_iteration": best_iter, "pos": pos, "neg": neg, "importance": importances}
+    for split_name in ("val", "test"):
+        gt = split.ground_truth(split_name)
+        known = [u for u in gt if u in train_users]
+        random.shuffle(known)
+        known = known[: (MAX_TRAIN_USERS if split_name == "val" else MAX_TEST_USERS)]
+        print(f"\n{split_name.upper()} known users={len(known)}")
+        report[split_name] = {}
+        for name, fn in [
+            ("popularity", lambda u: pop.recommend(u, k=K)),
+            ("als_raw", lambda u: als.recommend(u, k=K)),
+            ("two_stage", lambda u: two.recommend(u, k=K)),
+        ]:
+            nd, re, mp, n = _avg(fn, gt, known)
+            report[split_name][name] = {"ndcg": nd, "recall": re, "map": mp, "n": n}
+            print(f"  {name:11s} NDCG@10={nd:.4f} Recall@10={re:.4f} MAP@10={mp:.4f} n={n}")
 
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e9
     print(
         f"\nruntime={time.time()-t0:.0f}s peakRAM~{rss:.1f}GB rows={os.getenv('SHOPSIGNAL_TX_ROWS')}"
     )
 
+    report["runtime_s"] = round(time.time() - t0)
+    report["peak_ram_gb"] = round(rss, 1)
+    report["rows"] = tx.shape[0]
     out = Path("models")
     ranker.save(out / "lgbm_ranker.joblib")
     (out / "ranker_schema.json").write_text(json.dumps({"feature_cols": ds.feature_cols}, indent=2))
@@ -118,6 +138,7 @@ def main() -> None:
             indent=2,
         )
     )
+    (out / "eval_report.json").write_text(json.dumps(report, indent=2))
     print(f"artifacts → {out}/ (gitignored)")
 
 

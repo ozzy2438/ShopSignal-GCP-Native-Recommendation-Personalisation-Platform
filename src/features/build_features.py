@@ -111,8 +111,11 @@ def build_user_features(train: pd.DataFrame) -> pd.DataFrame:
     """
     ref_date = train["t_dat"].max()
     grp = train.groupby("customer_id")
+    span = grp["t_dat"].agg(["min", "max"])
+    active_days = (span["max"] - span["min"]).dt.days
+    recency_days = (ref_date - span["max"]).dt.days
     if "sales_channel_id" in train.columns:
-        online = grp["sales_channel_id"].apply(lambda s: float((s == 1).mean()))
+        online = (train["sales_channel_id"] == 1).groupby(train["customer_id"]).mean()
     else:
         online = pd.Series(0.0, index=grp.size().index)
     feats = pd.DataFrame(
@@ -121,8 +124,8 @@ def build_user_features(train: pd.DataFrame) -> pd.DataFrame:
             "user_unique_items": grp["article_id"].nunique(),
             "user_total_spend": grp["price"].sum(),
             "user_avg_spend": grp["price"].mean(),
-            "user_active_days": grp["t_dat"].apply(lambda d: (d.max() - d.min()).days),
-            "user_recency_days": (ref_date - grp["t_dat"].max()).dt.days,
+            "user_active_days": active_days,
+            "user_recency_days": recency_days,
             "user_online_ratio": online,
         }
     )

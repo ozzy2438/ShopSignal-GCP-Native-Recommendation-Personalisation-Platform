@@ -103,24 +103,28 @@ def build_ranking_dataset(
     if pairs.empty:
         return RankingDataset(pairs, np.array([], dtype=int), [], [], FEATURE_COLS)
 
+    # Single groupby instead of an O(rows × users) per-user filter so the
+    # builder scales to the full 15M preset.
     rng = np.random.default_rng(seed)
     keep_rows: list[pd.DataFrame] = []
     users: list[str] = []
     group: list[int] = []
+    labels_kept: list[int] = []
 
-    for user in sorted(candidates.keys()):
+    for user, sub in pairs.groupby("customer_id", sort=True):
         relevant = labels.get(user, set())
         if not relevant:
             continue
-        sub = pairs[pairs["customer_id"] == user]
-        pos = sub[sub["article_id"].isin(relevant)]
+        is_pos = sub["article_id"].isin(relevant)
+        pos = sub[is_pos]
         if pos.empty:
             continue
-        neg = sub[~sub["article_id"].isin(relevant)]
+        neg = sub[~is_pos]
         if len(neg) > max_negatives:
             neg = neg.iloc[rng.permutation(len(neg))[:max_negatives]]
         block = pd.concat([pos, neg]).sort_values("als_rank")
         keep_rows.append(block)
+        labels_kept.extend(block["article_id"].isin(relevant).astype(int).tolist())
         users.append(user)
         group.append(len(block))
 
@@ -128,9 +132,6 @@ def build_ranking_dataset(
         return RankingDataset(pairs.iloc[0:0], np.array([], dtype=int), [], [], FEATURE_COLS)
 
     full = pd.concat(keep_rows, ignore_index=True)
-    y = np.array(
-        [1 if r.article_id in labels.get(r.customer_id, set()) else 0 for r in full.itertuples()],
-        dtype=int,
-    )
+    y = np.array(labels_kept, dtype=int)
     X = assemble_feature_matrix(full, item_feats, user_feats)  # noqa: N806
     return RankingDataset(X=X, y=y, group=group, users=users, feature_cols=FEATURE_COLS)
