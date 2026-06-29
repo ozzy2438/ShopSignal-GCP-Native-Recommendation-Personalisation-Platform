@@ -25,4 +25,19 @@ class RecommendResponse(BaseModel):
     customer_id: str
     recommendations: list[RecommendedItem]
     model_version: str
-    source: str = Field(..., description="'mock' | 'als+lgbm' | 'bigquery-batch'")
+    source: str = Field(..., description="'mock' | 'als+lgbm' | 'popularity' | 'bigquery-batch'")
+
+
+class BatchRecommendRequest(BaseModel):
+    customer_ids: list[str] = Field(..., min_length=1, max_length=1000)
+    top_n: int = Field(default=10, ge=1, le=50, description="Number of items per user")
+
+    model_config = {
+        "json_schema_extra": {"example": {"customer_ids": ["abc123", "def456"], "top_n": 10}}
+    }
+
+
+class BatchRecommendResponse(BaseModel):
+    results: list[RecommendResponse]
+    model_version: str
+    source: str
