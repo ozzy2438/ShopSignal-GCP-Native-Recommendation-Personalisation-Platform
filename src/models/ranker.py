@@ -67,11 +67,12 @@ class LightGBMRanker:
             verbose=-1,
         )
         callbacks = []
-        fit_kwargs: dict = {"group": group, "eval_at": ndcg_eval_at}
+        grp = np.asarray(group, dtype=np.int32)
+        fit_kwargs: dict = {"group": grp, "eval_at": ndcg_eval_at}
         if eval_set is not None and eval_group is not None:
             ex, ey = eval_set
             fit_kwargs["eval_set"] = [(np.ascontiguousarray(ex, dtype=np.float64), ey)]
-            fit_kwargs["eval_group"] = [eval_group]
+            fit_kwargs["eval_group"] = [np.asarray(eval_group, dtype=np.int32)]
             if early_stopping_rounds:
                 callbacks = [early_stopping(early_stopping_rounds), log_evaluation(0)]
         x_arr = np.ascontiguousarray(X, dtype=np.float64)
