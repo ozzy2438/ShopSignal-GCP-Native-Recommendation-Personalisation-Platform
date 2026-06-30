@@ -1,74 +1,64 @@
-# Environments
+# Environments and Deployment Status
 
-ShopSignal has three deployment environments. Each environment has its own GitHub Environment with separate secrets and (for staging and production) manual approval requirements.
+Only local/test execution is active. `staging` and `production` are workflow targets that
+demonstrate approval gates; they are not provisioned Cloud Run environments.
 
-## Overview
+| Target | Current behaviour | Live URL |
+|---|---|---|
+| Local / CI | FastAPI, tests, Docker build, and `/health` verification | `localhost:8080` while running |
+| Staging | GitHub Actions deployment simulation | None |
+| Production | GitHub Actions deployment simulation | None |
 
-| Environment | Purpose | Trigger | Approval | URL |
-|-------------|---------|---------|----------|-----|
-| `development` | Smoke tests, integration tests | Every push to `main` | None | localhost / PR preview |
-| `staging` | Pre-production validation | After build RC passes | 1 reviewer | `staging-api.shopsignal.example.com` |
-| `production` | Live traffic | Manual gate after staging | 1 reviewer | `api.shopsignal.example.com` |
+The URLs in `.github/workflows/cd-deployment.yml` use the reserved example domain and are
+placeholders only.
 
-## GitHub Environments
+## Local and CI configuration
 
-Each environment is configured under:  
-`GitHub → Repository → Settings → Environments`
+- Local development copies `.env.example` to the gitignored `.env` file.
+- CI needs no cloud secret because the API can boot without a model bundle.
+- `SHOPSIGNAL_MODEL_DIR` enables real local model loading when a complete gitignored
+  bundle is available.
+- Docker sets `APP_ENV=production` by default as runtime configuration; this label does
+  not mean that the image has been deployed.
 
-### development
-- **Protection rules:** None (automatic)
-- **Secrets:** None required (uses mock/localhost)
-- **Purpose:** Verify Docker image starts, smoke tests pass
+## Prepared GitHub Environments
 
-### staging
-- **Protection rules:** Required reviewers (1)
-- **Secrets:**
-  - `GCP_PROJECT_ID` — staging GCP project
-  - `WORKLOAD_IDENTITY_PROVIDER` — WIF pool for staging
-  - `SERVICE_ACCOUNT_EMAIL` — staging SA
-  - `CLOUD_RUN_SERVICE_NAME` — staging Cloud Run service
-  - `GCP_REGION` — e.g. `australia-southeast1`
-- **Wait timer:** 0 minutes (immediate after approval)
+The deployment workflow references `staging` and `production` GitHub Environments so that
+reviewer gates can be configured before any future cloud activation. Suggested protection
+rules and secret names are documented in `manual-github-settings.md`.
 
-### production
-- **Protection rules:** Required reviewers (1), wait timer 5 minutes
-- **Secrets:** Same structure as staging but pointing to production project/SA
-- **Deployment history:** Visible in GitHub Environments tab
+Required future values include:
 
-## Environment Variables (non-secret)
+- `GCP_PROJECT_ID`
+- `WORKLOAD_IDENTITY_PROVIDER`
+- `SERVICE_ACCOUNT_EMAIL`
+- `CLOUD_RUN_SERVICE_NAME`
+- `GCP_REGION`
 
-These are set as GitHub Actions environment variables (not secrets):
+They have not been supplied or validated as part of the local project evidence.
 
-| Variable | dev | staging | production |
-|----------|-----|---------|------------|
-| `APP_ENV` | `development` | `staging` | `production` |
-| `LOG_LEVEL` | `DEBUG` | `INFO` | `WARNING` |
-| `NDCG_PROMOTION_THRESHOLD` | `0.30` | `0.35` | `0.35` |
+## Intended authentication design
 
-## Secret Management Rules
+If cloud deployment is activated, GitHub Actions should exchange its OIDC identity through
+Google Workload Identity Federation and impersonate a narrowly scoped service account.
+No service-account JSON key should be committed or stored as a long-lived repository
+secret.
 
-- Secrets are **never** committed to Git
-- Local development uses `.env` (gitignored)
-- CI/CD uses GitHub Secrets (encrypted at rest, masked in logs)
-- GCP authentication uses **Workload Identity Federation** (no long-lived keys)
-- Service-account JSON keys are **explicitly forbidden** in this repository
-
-## Workload Identity Federation (WIF)
-
-Preferred authentication method for Cloud Run deployments.
-
-```
-GitHub Actions → Google WIF Pool → Service Account → Cloud Run
-     │                                     │
-   OIDC token              Impersonation (no JSON key)
+```text
+GitHub Actions OIDC → Workload Identity Federation → service account → Cloud Run
 ```
 
-Required setup (one-time, documented in `docs/manual-github-settings.md`):
-1. Create WIF pool in GCP IAM
-2. Create WIF provider (GitHub issuer)
-3. Grant `roles/iam.workloadIdentityUser` to the GitHub repo
-4. Add `roles/run.admin` + `roles/storage.admin` to the service account
+## Activation gate
 
-## Rollback
+Real staging/production use requires all of the following:
 
-See [`docs/release-and-rollback.md`](release-and-rollback.md) for rollback procedures per environment.
+1. explicit GCP cost approval;
+2. provisioned Artifact Registry and Cloud Run services;
+3. configured keyless identity and least-privilege IAM;
+4. immutable image publishing;
+5. real service URLs and post-deployment health checks;
+6. monitoring and tested rollback; and
+7. removal of simulation-only workflow steps through a reviewed change.
+
+Until then, documentation and CV material must describe the application as
+**Cloud Run-ready with simulated deployment**, never live or production-deployed.
