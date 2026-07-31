@@ -97,7 +97,7 @@ jobs:
       #     run: gcloud auth configure-docker australia-southeast1-docker.pkg.dev
       #
       #   - name: Push to Artifact Registry
-      #     uses: docker/build-push-action@v5
+      #     uses: docker/build-push-action@v7
       #     with:
       #       push: true
       #       tags: |
@@ -106,7 +106,7 @@ jobs:
       # ──────────────────────────────────────────────────────────────────────
 
       - name: Build Docker image (local only — registry not yet configured)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false   # TODO: set to true when Artifact Registry is configured
